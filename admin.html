@@ -15,19 +15,19 @@
   <button onclick="uploadImage()">Upload</button>
 
   <script>
-    async function uploadImage() {
-      const file = document.getElementById('imgFile').files[0];
-      const theatre = document.getElementById('theatre').value;
-      if(!file) return alert('Select a file first');
+async function uploadImage() {
+  const file = document.getElementById('imgFile').files[0];
+  const theatre = document.getElementById('theatre').value;
+  if(!file) return alert('Select a file first');
 
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('theatre', theatre);
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('theatre', theatre);
 
-      const res = await fetch('/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      alert('Uploaded: ' + data.path);
-    }
-  </script>
+  const res = await fetch('/upload', { method: 'POST', body: formData });
+  const data = await res.json();
+  alert('Uploaded! URL: ' + data.url);
+}
+</script>
 </body>
 </html>

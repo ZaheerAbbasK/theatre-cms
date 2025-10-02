@@ -1,39 +1,37 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { v2: cloudinary } = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 
-// Ensure folders exist
-['uploads/birthday', 'uploads/couple', 'uploads/theatre'].forEach(folder => {
-  if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: 'db1abgogb',
+  api_key: '748814157685678',
+  api_secret: 'D6t5O6Z-fsLtCS1ISDLgWtEmCDg'
 });
 
-// Multer storage setup
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, `uploads/${req.body.theatre}`);
+// Setup multer-storage-cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    return {
+      folder: req.body.theatre, // birthday/couple/theatre
+      public_id: file.originalname.split('.')[0], // keep original name without extension
+    };
   },
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  }
 });
-const upload = multer({ storage });
 
-// Serve uploaded images
-app.use('/uploads', express.static('uploads'));
+const parser = multer({ storage });
 
 // Upload endpoint
-app.post('/upload', upload.single('image'), (req, res) => {
-  res.json({ status: 'ok', path: `/uploads/${req.body.theatre}/${req.file.originalname}` });
+app.post('/upload', parser.single('image'), (req, res) => {
+  res.json({ status: 'ok', url: req.file.path });
 });
 
-// Admin page
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin.html'));
-});
+// Serve admin page
+app.get('/admin', (req, res) => res.sendFile(__dirname + '/admin.html'));
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
