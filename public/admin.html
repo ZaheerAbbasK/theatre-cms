@@ -57,15 +57,15 @@ async function loadImages(){
   try{
     const res = await fetch("/api/images");
     const images = await res.json();
-    document.getElementById("birthdayImageBox").innerHTML = `<img src="${images.birthday}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
-    document.getElementById("coupleImageBox").innerHTML = `<img src="${images.couple}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
-    document.getElementById("privateImageBox").innerHTML = `<img src="${images.private}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+    const ts = Date.now(); // cache-busting
+    document.getElementById("birthdayImageBox").innerHTML = `<img src="${images.birthday}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+    document.getElementById("coupleImageBox").innerHTML = `<img src="${images.couple}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+    document.getElementById("privateImageBox").innerHTML = `<img src="${images.private}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
   }catch(err){
     console.error(err);
   }
 }
 loadImages();
-
 // Upload handlers
 const setups = [
   {fileId:'birthdayFile', pinId:'birthdayPin', boxId:'birthdayImageBox', btnId:'birthdayBtn', theatre:'birthday'},

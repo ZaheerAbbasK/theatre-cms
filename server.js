@@ -14,7 +14,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Multer storage for Cloudinary
+// Multer + Cloudinary storage
 const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
@@ -24,14 +24,14 @@ const storage = new CloudinaryStorage({
       public_id: "default",
       resource_type: "image",
       overwrite: true,
+      invalidate: true // refresh CDN
     };
-  },
+  }
 });
 const upload = multer({ storage });
 
-// Middleware
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public")); // serve static files like HTML, CSS
+app.use(express.static("public"));
 
 // Upload endpoint
 app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
@@ -42,7 +42,7 @@ app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
   res.json({ message: "Upload successful!", url: req.file.path });
 });
 
-// Helper: fetch latest image URL from Cloudinary
+// Helper: get latest image URL
 async function getLatestImageUrl(folder) {
   try {
     const result = await cloudinary.search
@@ -62,7 +62,7 @@ async function getLatestImageUrl(folder) {
   }
 }
 
-// API endpoint to fetch current images
+// API endpoint to fetch latest images
 app.get("/api/images", async (req, res) => {
   const images = {
     birthday: await getLatestImageUrl("birthday"),
@@ -72,5 +72,4 @@ app.get("/api/images", async (req, res) => {
   res.json(images);
 });
 
-// Start server
 app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
