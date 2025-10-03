@@ -3,78 +3,108 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Panel</title>
+  <title>Theatre Admin Panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
+      font-family: 'Inter', sans-serif;
+      background: #f0f2f5;
       margin: 0;
       padding: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
+      min-height: 100vh;
     }
     h1 {
-      margin: 20px 0;
-      color: #333;
+      margin: 30px 0;
+      color: #222;
+      text-align: center;
     }
     .card {
-      background: white;
+      background: #fff;
       padding: 20px;
       border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      margin-bottom: 20px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      margin-bottom: 25px;
       width: 90%;
       max-width: 400px;
+      transition: transform 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-3px);
     }
     label {
       display: block;
-      font-weight: bold;
-      margin-bottom: 8px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #333;
     }
-    input[type="file"] {
-      margin-bottom: 10px;
+    input[type="file"], input[type="password"] {
+      width: 100%;
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
     }
     button {
       width: 100%;
-      background: #007bff;
-      color: white;
-      border: none;
       padding: 12px;
-      font-size: 16px;
+      border: none;
       border-radius: 8px;
+      background: #007bff;
+      color: #fff;
+      font-size: 16px;
       cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    button:hover {
+      background: #0056d2;
     }
     button:disabled {
-      background: #999;
+      background: #aaa;
       cursor: not-allowed;
     }
     .message {
       margin-top: 10px;
       font-size: 14px;
-      display: none;
       text-align: center;
+      display: none;
     }
     .success {
-      color: green;
+      color: #28a745;
     }
     .error {
-      color: red;
+      color: #dc3545;
     }
     .loading {
       text-align: center;
       display: none;
+      margin-top: 8px;
+      font-size: 14px;
+      color: #555;
+    }
+    @media (max-width: 500px) {
+      .card {
+        width: 95%;
+        padding: 15px;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Update Theatre Images</h1>
+  <h1>Theatre Image Admin Panel</h1>
 
   <div class="card">
     <h2>Birthday Theatre</h2>
     <form id="birthdayForm">
       <label for="birthdayImage">Upload Image:</label>
       <input type="file" id="birthdayImage" name="image" accept="image/*" required>
+      
+      <label for="birthdayPin">Admin PIN:</label>
+      <input type="password" id="birthdayPin" name="pin" placeholder="Enter PIN" required>
+      
       <button type="submit">Upload</button>
       <div class="loading" id="birthdayLoading">Uploading...</div>
       <div class="message success" id="birthdaySuccess">✅ Uploaded Successfully!</div>
@@ -87,6 +117,10 @@
     <form id="coupleForm">
       <label for="coupleImage">Upload Image:</label>
       <input type="file" id="coupleImage" name="image" accept="image/*" required>
+      
+      <label for="couplePin">Admin PIN:</label>
+      <input type="password" id="couplePin" name="pin" placeholder="Enter PIN" required>
+      
       <button type="submit">Upload</button>
       <div class="loading" id="coupleLoading">Uploading...</div>
       <div class="message success" id="coupleSuccess">✅ Uploaded Successfully!</div>
@@ -99,6 +133,10 @@
     <form id="mainForm">
       <label for="mainImage">Upload Image:</label>
       <input type="file" id="mainImage" name="image" accept="image/*" required>
+      
+      <label for="mainPin">Admin PIN:</label>
+      <input type="password" id="mainPin" name="pin" placeholder="Enter PIN" required>
+      
       <button type="submit">Upload</button>
       <div class="loading" id="mainLoading">Uploading...</div>
       <div class="message success" id="mainSuccess">✅ Uploaded Successfully!</div>
@@ -116,10 +154,13 @@
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const file = form.querySelector("input[type=file]").files[0];
+        const pin = form.querySelector("input[name=pin]").value;
+
         if (!file) return;
 
         const formData = new FormData();
         formData.append("image", file);
+        formData.append("pin", pin);
 
         loading.style.display = "block";
         success.style.display = "none";
