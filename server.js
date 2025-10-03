@@ -7,7 +7,7 @@ const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Cloudinary config
+// Cloudinary configuration
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -20,8 +20,8 @@ const storage = new CloudinaryStorage({
   params: async (req, file) => {
     const theatre = req.params.theatre; // birthday, couple, private
     return {
-      folder: `theatres/${theatre}`,
-      public_id: "default", // overwrite existing default image
+      folder: `theatres/${theatre}`, // store in subfolder
+      public_id: "default",          // overwrite default image
       resource_type: "image",
       overwrite: true,
     };
@@ -45,11 +45,11 @@ app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
 
 // Serve admin panel
 app.get("/", async (req, res) => {
-  // Fetch current images from Cloudinary
+  // Cloudinary URLs using public IDs only (no extension needed)
   const images = {
-    birthday: cloudinary.url("theatres/birthday/default.jpg", { width: 400, height: 300, crop: "fill", secure: true }),
-    couple: cloudinary.url("theatres/couple/default.jpg", { width: 400, height: 300, crop: "fill", secure: true }),
-    private: cloudinary.url("theatres/private/default.jpg", { width: 400, height: 300, crop: "fill", secure: true }),
+    birthday: cloudinary.url("theatres/birthday/default", { width: 400, height: 300, crop: "fill", secure: true }),
+    couple:   cloudinary.url("theatres/couple/default", { width: 400, height: 300, crop: "fill", secure: true }),
+    private:  cloudinary.url("theatres/private/default", { width: 400, height: 300, crop: "fill", secure: true }),
   };
 
   res.send(`
