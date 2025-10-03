@@ -14,20 +14,19 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Multer + Cloudinary storage (each theatre in its own folder)
+// Multer + Cloudinary storage
 const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
     const theatre = req.params.theatre; // birthday, couple, private
     return {
-      folder: `theatres/${theatre}`, // subfolder for each theatre
-      public_id: "default",          // overwrites default.jpg
+      folder: `theatres/${theatre}`,
+      public_id: "default", // overwrite existing default image
       resource_type: "image",
       overwrite: true,
     };
   },
 });
-
 const upload = multer({ storage });
 
 // Middleware
@@ -48,9 +47,9 @@ app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
 app.get("/", async (req, res) => {
   // Fetch current images from Cloudinary
   const images = {
-    birthday: cloudinary.url("theatres/birthday/default", { width: 400, height: 300, crop: "fill" }),
-    couple: cloudinary.url("theatres/couple/default", { width: 400, height: 300, crop: "fill" }),
-    private: cloudinary.url("theatres/private/default", { width: 400, height: 300, crop: "fill" }),
+    birthday: cloudinary.url("theatres/birthday/default.jpg", { width: 400, height: 300, crop: "fill", secure: true }),
+    couple: cloudinary.url("theatres/couple/default.jpg", { width: 400, height: 300, crop: "fill", secure: true }),
+    private: cloudinary.url("theatres/private/default.jpg", { width: 400, height: 300, crop: "fill", secure: true }),
   };
 
   res.send(`
