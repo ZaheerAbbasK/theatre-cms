@@ -1,33 +1,154 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Admin Upload</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      margin: 20px 0;
+      color: #333;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      width: 90%;
+      max-width: 400px;
+    }
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    input[type="file"] {
+      margin-bottom: 10px;
+    }
+    button {
+      width: 100%;
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+    .message {
+      margin-top: 10px;
+      font-size: 14px;
+      display: none;
+      text-align: center;
+    }
+    .success {
+      color: green;
+    }
+    .error {
+      color: red;
+    }
+    .loading {
+      text-align: center;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <h1>Upload Theatre Images</h1>
+  <h1>Update Theatre Images</h1>
 
-  <select id="theatre">
-    <option value="birthday">Birthday</option>
-    <option value="couple">Couple</option>
-    <option value="theatre">Theatre</option>
-  </select>
-  <input type="file" id="imgFile">
-  <button onclick="uploadImage()">Upload</button>
+  <div class="card">
+    <h2>Birthday Theatre</h2>
+    <form id="birthdayForm">
+      <label for="birthdayImage">Upload Image:</label>
+      <input type="file" id="birthdayImage" name="image" accept="image/*" required>
+      <button type="submit">Upload</button>
+      <div class="loading" id="birthdayLoading">Uploading...</div>
+      <div class="message success" id="birthdaySuccess">✅ Uploaded Successfully!</div>
+      <div class="message error" id="birthdayError">❌ Upload Failed!</div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Couple Theatre</h2>
+    <form id="coupleForm">
+      <label for="coupleImage">Upload Image:</label>
+      <input type="file" id="coupleImage" name="image" accept="image/*" required>
+      <button type="submit">Upload</button>
+      <div class="loading" id="coupleLoading">Uploading...</div>
+      <div class="message success" id="coupleSuccess">✅ Uploaded Successfully!</div>
+      <div class="message error" id="coupleError">❌ Upload Failed!</div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Main Theatre</h2>
+    <form id="mainForm">
+      <label for="mainImage">Upload Image:</label>
+      <input type="file" id="mainImage" name="image" accept="image/*" required>
+      <button type="submit">Upload</button>
+      <div class="loading" id="mainLoading">Uploading...</div>
+      <div class="message success" id="mainSuccess">✅ Uploaded Successfully!</div>
+      <div class="message error" id="mainError">❌ Upload Failed!</div>
+    </form>
+  </div>
 
   <script>
-async function uploadImage() {
-  const file = document.getElementById('imgFile').files[0];
-  const theatre = document.getElementById('theatre').value;
-  if(!file) return alert('Select a file first');
+    async function handleUpload(formId, loadingId, successId, errorId, theatre) {
+      const form = document.getElementById(formId);
+      const loading = document.getElementById(loadingId);
+      const success = document.getElementById(successId);
+      const error = document.getElementById(errorId);
 
-  const formData = new FormData();
-  formData.append('image', file);
-  formData.append('theatre', theatre);
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const file = form.querySelector("input[type=file]").files[0];
+        if (!file) return;
 
-  const res = await fetch('/upload', { method: 'POST', body: formData });
-  const data = await res.json();
-  alert('Uploaded! URL: ' + data.url);
-}
-</script>
+        const formData = new FormData();
+        formData.append("image", file);
+
+        loading.style.display = "block";
+        success.style.display = "none";
+        error.style.display = "none";
+
+        try {
+          const res = await fetch(`/upload/${theatre}`, {
+            method: "POST",
+            body: formData,
+          });
+          const data = await res.json();
+
+          loading.style.display = "none";
+          if (res.ok) {
+            success.style.display = "block";
+          } else {
+            error.textContent = "❌ " + (data.message || "Upload Failed!");
+            error.style.display = "block";
+          }
+        } catch {
+          loading.style.display = "none";
+          error.style.display = "block";
+        }
+      });
+    }
+
+    handleUpload("birthdayForm", "birthdayLoading", "birthdaySuccess", "birthdayError", "birthday");
+    handleUpload("coupleForm", "coupleLoading", "coupleSuccess", "coupleError", "couple");
+    handleUpload("mainForm", "mainLoading", "mainSuccess", "mainError", "main");
+  </script>
 </body>
 </html>
