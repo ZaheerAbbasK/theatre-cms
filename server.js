@@ -20,8 +20,8 @@ const storage = new CloudinaryStorage({
   params: async (req, file) => {
     const theatre = req.params.theatre; // birthday, couple, private
     return {
-      folder: `theatres/${theatre}`, // store in subfolder
-      public_id: "default",          // overwrite default image
+      folder: `theatres/${theatre}`,
+      public_id: "default", // overwrite default image
       resource_type: "image",
       overwrite: true,
     };
@@ -43,13 +43,34 @@ app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
   res.json({ message: "Upload successful!", url: req.file.path });
 });
 
+// Helper: get latest image URL from Cloudinary
+async function getLatestImageUrl(folder) {
+  try {
+    const result = await cloudinary.search
+      .expression(`folder:theatres/${folder}`)
+      .sort_by("uploaded_at", "desc")
+      .max_results(1)
+      .execute();
+
+    if (result.resources.length === 0) {
+      // fallback placeholder if no image uploaded
+      return "https://via.placeholder.com/400x300?text=No+Image";
+    }
+
+    const file = result.resources[0];
+    return cloudinary.url(file.public_id + "." + file.format, { width: 400, height: 300, crop: "fill", secure: true });
+  } catch (err) {
+    console.error(err);
+    return "https://via.placeholder.com/400x300?text=Error";
+  }
+}
+
 // Serve admin panel
 app.get("/", async (req, res) => {
-  // Cloudinary URLs using public IDs only (no extension needed)
   const images = {
-    birthday: cloudinary.url("theatres/birthday/default", { width: 400, height: 300, crop: "fill", secure: true }),
-    couple:   cloudinary.url("theatres/couple/default", { width: 400, height: 300, crop: "fill", secure: true }),
-    private:  cloudinary.url("theatres/private/default", { width: 400, height: 300, crop: "fill", secure: true }),
+    birthday: await getLatestImageUrl("birthday"),
+    couple: await getLatestImageUrl("couple"),
+    private: await getLatestImageUrl("private"),
   };
 
   res.send(`
