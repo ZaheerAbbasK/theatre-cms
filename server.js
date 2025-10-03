@@ -3,31 +3,31 @@ const express = require("express");
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
-const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Cloudinary configuration
+// Cloudinary config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Multer + Cloudinary storage
+// Multer + Cloudinary storage (each theatre in its own folder)
 const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
-    const theatre = req.params.theatre;
+    const theatre = req.params.theatre; // birthday, couple, private
     return {
-      folder: "theatres",
-      public_id: theatre,
+      folder: `theatres/${theatre}`, // subfolder for each theatre
+      public_id: "default",          // overwrites default.jpg
       resource_type: "image",
       overwrite: true,
     };
   },
 });
+
 const upload = multer({ storage });
 
 // Middleware
@@ -36,27 +36,23 @@ app.use(express.urlencoded({ extended: true }));
 // Upload route
 app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
   const pin = req.body.pin;
-  if (pin !== process.env.ADMINPIN) return res.status(401).json({ message: "Invalid PIN!" });
+  if (pin !== process.env.ADMINPIN)
+    return res.status(401).json({ message: "Invalid PIN!" });
 
   if (!req.file) return res.status(400).json({ message: "No file uploaded!" });
+
   res.json({ message: "Upload successful!", url: req.file.path });
 });
 
 // Serve admin panel
 app.get("/", async (req, res) => {
   // Fetch current images from Cloudinary
-  const theatres = ["birthday", "couple", "private"];
-  const images = {};
-  for (let t of theatres) {
-    try {
-      const url = cloudinary.url(`theatres/${t}`, { width: 400, height: 300, crop: "fill" });
-      images[t] = url;
-    } catch (e) {
-      images[t] = "";
-    }
-  }
+  const images = {
+    birthday: cloudinary.url("theatres/birthday/default", { width: 400, height: 300, crop: "fill" }),
+    couple: cloudinary.url("theatres/couple/default", { width: 400, height: 300, crop: "fill" }),
+    private: cloudinary.url("theatres/private/default", { width: 400, height: 300, crop: "fill" }),
+  };
 
-  // Send HTML with embedded preview URLs
   res.send(`
 <!DOCTYPE html>
 <html lang="en">
@@ -128,13 +124,11 @@ setups.forEach(({fileId,pinId,boxId,btnId})=>{
   fileInput.addEventListener("change", e=>{
     const file = e.target.files[0];
     if(file){
-      // update preview immediately
       const reader = new FileReader();
       reader.onload = () => {
         imgBox.innerHTML = '<img src="'+reader.result+'" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">';
       }
       reader.readAsDataURL(file);
-
       pinInput.style.display="block";
     }
   });
