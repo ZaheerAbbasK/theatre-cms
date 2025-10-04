@@ -8,7 +8,15 @@ require("dotenv").config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+const path = require("path");
 
+// serve files from the "public" folder
+app.use(express.static(path.join(__dirname, "public")));
+
+// fallback: open admin.html when hitting /admin
+app.get("/admin", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "admin.html"));
+});
 // ✅ Cloudinary config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
