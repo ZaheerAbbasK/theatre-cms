@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking Admin - Beano's Hub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Global Reset and Typography */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      /* Darker, professional background */
+      background: #e9ecef; 
+      min-height: 100vh;
+      padding: 20px;
+      color: #343a40;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header Styling */
+    .header {
+      background: #ffffff;
+      padding: 20px 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-left: 5px solid #007bff; /* Accent color */
+    }
+
+    h1 {
+      color: #1a1a2e;
+      font-size: 26px;
+      font-weight: 700;
+    }
+
+    /* Auth Section */
+    .auth-section {
+      background: #ffffff;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      text-align: center;
+      max-width: 450px;
+      margin: 60px auto;
+    }
+
+    /* Input Fields */
+    input {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #ced4da;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+    input:focus {
+      border-color: #007bff;
+      outline: none;
+      box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    /* Button Styling */
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.3s ease-in-out;
+      font-size: 16px;
+    }
+
+    .login-btn {
+      background: #007bff;
+      color: white;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .login-btn:hover {
+      background: #0056b3;
+      transform: translateY(-1px);
+    }
+
+    #refreshBtn {
+      background: #6c757d;
+      color: white;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+    }
+
+    #refreshBtn:hover {
+      background: #5a6268;
+    }
+
+    /* Bookings Grid */
+    .bookings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 25px;
+      margin-top: 25px;
+    }
+
+    .booking-card {
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      transition: transform 0.2s;
+    }
+
+    .booking-card:hover {
+        transform: translateY(-3px);
+    }
+
+    .booking-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px dashed #dee2e6;
+    }
+
+    .booking-id {
+      font-weight: 700;
+      color: #007bff;
+      font-size: 18px;
+    }
+
+    .pending-badge {
+      background: #ffc107;
+      color: #343a40;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .booking-detail {
+      margin-bottom: 10px;
+      font-size: 15px;
+    }
+
+    .label {
+      color: #6c757d;
+      font-weight: 500;
+      margin-right: 8px;
+    }
+
+    .value {
+      color: #212529;
+      font-weight: 600;
+    }
+
+    /* Action Buttons */
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 25px;
+    }
+
+    .confirm-btn {
+      background: #28a745;
+      color: white;
+    }
+
+    .confirm-btn:hover {
+      background: #218838;
+    }
+
+    .decline-btn {
+      background: #dc3545;
+      color: white;
+    }
+
+    .decline-btn:hover {
+      background: #c82333;
+    }
+
+    /* Loading Overlay */
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #007bff;
+      display: none;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Beano's Hub - Booking Admin</h1>
+      <button id="refreshBtn">↻ Refresh</button>
+    </div>
+
+    <div id="authSection" class="auth-section">
+      <h2 style="margin-bottom:20px; color:#343a40;">Admin Login</h2>
+      <input type="password" id="pinInput" placeholder="Enter Admin PIN">
+      <button class="login-btn" onclick="login()">Login</button>
+    </div>
+
+    <div id="bookingsSection" style="display:none">
+      <div class="bookings-grid" id="bookingsGrid">
+        </div>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">Processing...</div>
+
+  <script>
+    let adminSecret = '';
+    // This should match the route to your server.js
+    const SERVER_URL = window.location.origin; 
+    const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
+
+    async function login() {
+      const pin = document.getElementById('pinInput').value;
+      
+      if (!pin) {
+        alert('Please enter the Admin PIN');
+        return;
+      }
+
+      showLoading('Authenticating...');
+      try {
+        // 1. Authenticate PIN and get the Admin Secret from the server
+        const authResponse = await fetch(`${SERVER_URL}/api/auth`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ pin: pin })
+        });
+
+        const authData = await authResponse.json();
+        
+        if (!authData.success) {
+          throw new Error(authData.message || 'Invalid PIN');
+        }
+
+        // 2. Store the retrieved secret
+        adminSecret = authData.adminSecret;
+        
+        // 3. Load bookings using the new secret
+        await loadPendingBookings();
+
+        // 4. Update UI
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('bookingsSection').style.display = 'block';
+        
+      } catch (error) {
+        alert(`Login failed: ${error.message}`);
+        console.error('Login Error:', error);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function loadPendingBookings() {
+      if (!adminSecret) {
+        alert('Not logged in.');
+        return;
+      }
+      showLoading('Fetching bookings...');
+      try {
+        const response = await fetch(`${WORKER_URL}/api/get-pending-bookings`, {
+          headers: {
+            // Use the secret retrieved from the server
+            'X-App-Secret': adminSecret
+          }
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch bookings');
+
+        const data = await response.json();
+        renderBookings(data.bookings);
+      } catch (error) {
+        console.error('Error loading bookings:', error);
+        alert('Failed to load bookings. Check WORKER_URL and Secret.');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function renderBookings(bookings) {
+      const grid = document.getElementById('bookingsGrid');
+      
+      if (!bookings || !bookings.length) {
+        grid.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #6c757d; font-size: 18px;">
+            <p>🎉 No pending bookings found! Everything looks clear.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = bookings.map(booking => `
+        <div class="booking-card">
+          <div class="booking-header">
+            <span class="booking-id">#${booking.booking_id}</span>
+            <span class="pending-badge">Pending</span>
+          </div>
+          
+          <div class="booking-detail">
+            <span class="label">Customer:</span>
+            <span class="value">${booking.customer_name}</span>
+          </div>
+          
+          <div class="booking-detail">
+            <span class="label">Phone:</span>
+            <span class="value">${booking.customer_phone}</span>
+          </div>
+          
+          <div class="booking-detail">
+            <span class="label">Email:</span>
+            <span class="value">${booking.customer_email || 'N/A'}</span>
+          </div>
+          
+          <div class="booking-detail">
+            <span class="label">Date/Time:</span>
+            <span class="value">${booking.event_date} @ ${booking.time_slot}</span>
+          </div>
+          
+          <div class="booking-detail">
+            <span class="label">Venue:</span>
+            <span class="value">${booking.venue_name}</span>
+          </div>
+          
+          <div class="booking-detail">
+            <span class="label">Total:</span>
+            <span class="value">₹${booking.grand_total}</span>
+          </div>
+
+          <div class="actions">
+            <button class="confirm-btn" onclick="confirmBooking('${booking.booking_id}')">
+              ✅ Confirm
+            </button>
+            <button class="decline-btn" onclick="declineBooking('${booking.booking_id}')">
+              ❌ Decline
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function confirmBooking(bookingId) {
+      if (!confirm(`Are you sure you want to CONFIRM booking #${bookingId}?`)) return;
+      
+      showLoading(`Confirming booking #${bookingId}...`);
+      try {
+        const response = await fetch(`${WORKER_URL}/api/confirm-booking`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-App-Secret': adminSecret
+          },
+          body: JSON.stringify({ booking_id: bookingId })
+        });
+
+        if (!response.ok) throw new Error('Failed to confirm booking');
+        alert(`Booking #${bookingId} confirmed successfully!`);
+        await loadPendingBookings();
+      } catch (error) {
+        console.error('Error confirming booking:', error);
+        alert('Failed to confirm booking');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function declineBooking(bookingId) {
+      if (!confirm(`Are you sure you want to DECLINE booking #${bookingId}? This action cannot be undone.`)) return;
+      
+      showLoading(`Declining booking #${bookingId}...`);
+      try {
+        const response = await fetch(`${WORKER_URL}/api/decline-booking`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-App-Secret': adminSecret
+          },
+          body: JSON.stringify({ booking_id: bookingId })
+        });
+
+        if (!response.ok) throw new Error('Failed to decline booking');
+        alert(`Booking #${bookingId} declined successfully!`);
+        await loadPendingBookings();
+      } catch (error) {
+        console.error('Error declining booking:', error);
+        alert('Failed to decline booking');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function showLoading(message = 'Processing...') {
+      document.getElementById('loading').textContent = message;
+      document.getElementById('loading').style.display = 'flex';
+    }
+
+    function hideLoading() {
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    // Refresh button handler
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      if (adminSecret) loadPendingBookings();
+      else alert('Please login first to refresh bookings.');
+    });
+  </script>
+</body>
+</html>
