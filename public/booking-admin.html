@@ -209,6 +209,83 @@
       display: none;
       z-index: 1000;
     }
+    
+    /* --- Modal Styles --- */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      transform: scale(0.9);
+      transition: transform 0.3s ease-out;
+    }
+    
+    .modal-overlay.active .modal-content {
+        transform: scale(1);
+    }
+    
+    .modal-icon {
+        font-size: 40px;
+        margin-bottom: 15px;
+    }
+
+    .modal-confirm-icon { color: #ffc107; }
+    .modal-success-icon { color: #28a745; }
+    .modal-error-icon { color: #dc3545; }
+
+    .modal-message {
+      margin-bottom: 25px;
+      font-size: 16px;
+      color: #495057;
+    }
+    
+    .modal-title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .modal-actions button {
+      margin: 0 10px;
+      padding: 10px 20px;
+      font-weight: 600;
+    }
+    
+    .modal-actions .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+    
+    .modal-actions .btn-secondary {
+        background: #f8f9fa;
+        color: #6c757d;
+        border: 1px solid #ced4da;
+    }
+
   </style>
 </head>
 <body>
@@ -232,17 +309,98 @@
 
   <div class="loading" id="loading">Processing...</div>
 
+  <div id="customModal" class="modal-overlay">
+    <div class="modal-content">
+      <div id="modalIcon" class="modal-icon"></div>
+      <div id="modalTitle" class="modal-title"></div>
+      <p id="modalMessage" class="modal-message"></p>
+      <div id="modalActions" class="modal-actions">
+        </div>
+    </div>
+  </div>
   <script>
     let adminSecret = '';
     // This should match the route to your server.js
     const SERVER_URL = window.location.origin; 
     const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 
+    // --- Modal Utility Functions ---
+    const customModal = document.getElementById('customModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const modalIcon = document.getElementById('modalIcon');
+    const modalActions = document.getElementById('modalActions');
+
+    /**
+     * Shows a custom confirmation or alert modal.
+     * @param {string} type - 'confirm', 'success', or 'error'.
+     * @param {string} title - The title of the modal.
+     * @param {string} message - The main message.
+     * @param {function} [onConfirm] - Function to run if confirmed (only for 'confirm' type).
+     * @returns {Promise<boolean>} Resolves with true for confirmation, false otherwise.
+     */
+    function showModal(type, title, message, onConfirm = null) {
+        return new Promise(resolve => {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            modalIcon.className = 'modal-icon'; // Reset class
+            modalActions.innerHTML = ''; // Clear buttons
+
+            if (type === 'confirm') {
+                modalIcon.classList.add('modal-confirm-icon');
+                modalIcon.innerHTML = '⚠️';
+                
+                // Yes/Primary button
+                const btnPrimary = document.createElement('button');
+                btnPrimary.className = 'btn-primary';
+                btnPrimary.textContent = 'Yes, Proceed';
+                btnPrimary.onclick = () => { hideModal(); onConfirm && onConfirm(); resolve(true); };
+                
+                // No/Secondary button
+                const btnSecondary = document.createElement('button');
+                btnSecondary.className = 'btn-secondary';
+                btnSecondary.textContent = 'Cancel';
+                btnSecondary.onclick = () => { hideModal(); resolve(false); };
+                
+                modalActions.appendChild(btnPrimary);
+                modalActions.appendChild(btnSecondary);
+
+            } else if (type === 'success') {
+                modalIcon.classList.add('modal-success-icon');
+                modalIcon.innerHTML = '✅';
+                
+                const btnPrimary = document.createElement('button');
+                btnPrimary.className = 'btn-primary';
+                btnPrimary.textContent = 'OK';
+                btnPrimary.onclick = () => { hideModal(); resolve(true); };
+                modalActions.appendChild(btnPrimary);
+
+            } else if (type === 'error') {
+                modalIcon.classList.add('modal-error-icon');
+                modalIcon.innerHTML = '❌';
+                
+                const btnPrimary = document.createElement('button');
+                btnPrimary.className = 'btn-primary';
+                btnPrimary.textContent = 'Close';
+                btnPrimary.onclick = () => { hideModal(); resolve(false); };
+                modalActions.appendChild(btnPrimary);
+            }
+
+            customModal.classList.add('active');
+        });
+    }
+
+    function hideModal() {
+        customModal.classList.remove('active');
+    }
+    // --- End Modal Utility Functions ---
+
+
     async function login() {
       const pin = document.getElementById('pinInput').value;
       
       if (!pin) {
-        alert('Please enter the Admin PIN');
+        await showModal('error', 'Login Error', 'Please enter the Admin PIN.');
         return;
       }
 
@@ -274,7 +432,7 @@
         document.getElementById('bookingsSection').style.display = 'block';
         
       } catch (error) {
-        alert(`Login failed: ${error.message}`);
+        await showModal('error', 'Login Failed', `Login failed: ${error.message}`);
         console.error('Login Error:', error);
       } finally {
         hideLoading();
@@ -283,7 +441,7 @@
 
     async function loadPendingBookings() {
       if (!adminSecret) {
-        alert('Not logged in.');
+        await showModal('error', 'Access Required', 'Not logged in. Please login first.');
         return;
       }
       showLoading('Fetching bookings...');
@@ -301,7 +459,7 @@
         renderBookings(data.bookings);
       } catch (error) {
         console.error('Error loading bookings:', error);
-        alert('Failed to load bookings. Check WORKER_URL and Secret.');
+        await showModal('error', 'Fetch Error', 'Failed to load bookings. Check WORKER_URL and Admin Secret.');
       } finally {
         hideLoading();
       }
@@ -369,53 +527,59 @@
     }
 
     async function confirmBooking(bookingId) {
-      if (!confirm(`Are you sure you want to CONFIRM booking #${bookingId}?`)) return;
-      
-      showLoading(`Confirming booking #${bookingId}...`);
-      try {
-        const response = await fetch(`${WORKER_URL}/api/confirm-booking`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-App-Secret': adminSecret
-          },
-          body: JSON.stringify({ booking_id: bookingId })
-        });
+        await showModal('confirm', 'Confirm Booking', 
+            `Are you sure you want to CONFIRM booking #${bookingId}? This will notify the customer.`, 
+            async () => {
+                showLoading(`Confirming booking #${bookingId}...`);
+                try {
+                    const response = await fetch(`${WORKER_URL}/api/confirm-booking`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-App-Secret': adminSecret
+                        },
+                        body: JSON.stringify({ booking_id: bookingId })
+                    });
 
-        if (!response.ok) throw new Error('Failed to confirm booking');
-        alert(`Booking #${bookingId} confirmed successfully!`);
-        await loadPendingBookings();
-      } catch (error) {
-        console.error('Error confirming booking:', error);
-        alert('Failed to confirm booking');
-      } finally {
-        hideLoading();
-      }
+                    if (!response.ok) throw new Error('Failed to confirm booking');
+                    await showModal('success', 'Confirmed!', `Booking #${bookingId} confirmed successfully!`);
+                    await loadPendingBookings();
+                } catch (error) {
+                    console.error('Error confirming booking:', error);
+                    await showModal('error', 'Action Failed', `Failed to confirm booking #${bookingId}.`);
+                } finally {
+                    hideLoading();
+                }
+            }
+        );
     }
 
     async function declineBooking(bookingId) {
-      if (!confirm(`Are you sure you want to DECLINE booking #${bookingId}? This action cannot be undone.`)) return;
-      
-      showLoading(`Declining booking #${bookingId}...`);
-      try {
-        const response = await fetch(`${WORKER_URL}/api/decline-booking`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-App-Secret': adminSecret
-          },
-          body: JSON.stringify({ booking_id: bookingId })
-        });
+        await showModal('confirm', 'Decline Booking', 
+            `Are you sure you want to DECLINE booking #${bookingId}? This action is irreversible and will delete the record.`, 
+            async () => {
+                showLoading(`Declining booking #${bookingId}...`);
+                try {
+                    const response = await fetch(`${WORKER_URL}/api/decline-booking`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-App-Secret': adminSecret
+                        },
+                        body: JSON.stringify({ booking_id: bookingId })
+                    });
 
-        if (!response.ok) throw new Error('Failed to decline booking');
-        alert(`Booking #${bookingId} declined successfully!`);
-        await loadPendingBookings();
-      } catch (error) {
-        console.error('Error declining booking:', error);
-        alert('Failed to decline booking');
-      } finally {
-        hideLoading();
-      }
+                    if (!response.ok) throw new Error('Failed to decline booking');
+                    await showModal('success', 'Declined & Deleted', `Booking #${bookingId} declined and deleted successfully!`);
+                    await loadPendingBookings();
+                } catch (error) {
+                    console.error('Error declining booking:', error);
+                    await showModal('error', 'Action Failed', `Failed to decline booking #${bookingId}.`);
+                } finally {
+                    hideLoading();
+                }
+            }
+        );
     }
 
     function showLoading(message = 'Processing...') {
@@ -430,7 +594,7 @@
     // Refresh button handler
     document.getElementById('refreshBtn').addEventListener('click', () => {
       if (adminSecret) loadPendingBookings();
-      else alert('Please login first to refresh bookings.');
+      else showModal('error', 'Access Required', 'Please login first to refresh bookings.');
     });
   </script>
 </body>
