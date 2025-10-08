@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,12 +8,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* Global Reset and Typography */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       font-family: 'Inter', sans-serif;
       /* Darker, professional background */
-      background: #e9ecef; 
+      background: #e9ecef;
       min-height: 100vh;
       padding: 20px;
       color: #343a40;
@@ -28,12 +33,13 @@
       background: #ffffff;
       padding: 20px 30px;
       border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
       margin-bottom: 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-left: 5px solid #007bff; /* Accent color */
+      border-left: 5px solid #007bff;
+      /* Accent color */
     }
 
     h1 {
@@ -47,7 +53,7 @@
       background: #ffffff;
       padding: 40px;
       border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       text-align: center;
       max-width: 450px;
       margin: 60px auto;
@@ -63,6 +69,7 @@
       font-size: 16px;
       transition: border-color 0.3s;
     }
+
     input:focus {
       border-color: #007bff;
       outline: none;
@@ -116,12 +123,12 @@
       background: #ffffff;
       padding: 25px;
       border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
       transition: transform 0.2s;
     }
 
     .booking-card:hover {
-        transform: translateY(-3px);
+      transform: translateY(-3px);
     }
 
     .booking-header {
@@ -198,7 +205,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(255,255,255,0.9);
+      background: rgba(255, 255, 255, 0.9);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -209,7 +216,7 @@
       display: none;
       z-index: 1000;
     }
-    
+
     /* --- Modal Styles --- */
     .modal-overlay {
       position: fixed;
@@ -243,30 +250,38 @@
       transform: scale(0.9);
       transition: transform 0.3s ease-out;
     }
-    
+
     .modal-overlay.active .modal-content {
-        transform: scale(1);
-    }
-    
-    .modal-icon {
-        font-size: 40px;
-        margin-bottom: 15px;
+      transform: scale(1);
     }
 
-    .modal-confirm-icon { color: #ffc107; }
-    .modal-success-icon { color: #28a745; }
-    .modal-error-icon { color: #dc3545; }
+    .modal-icon {
+      font-size: 40px;
+      margin-bottom: 15px;
+    }
+
+    .modal-confirm-icon {
+      color: #ffc107;
+    }
+
+    .modal-success-icon {
+      color: #28a745;
+    }
+
+    .modal-error-icon {
+      color: #dc3545;
+    }
 
     .modal-message {
       margin-bottom: 25px;
       font-size: 16px;
       color: #495057;
     }
-    
+
     .modal-title {
-        font-size: 24px;
-        font-weight: 700;
-        margin-bottom: 10px;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 10px;
     }
 
     .modal-actions button {
@@ -274,20 +289,20 @@
       padding: 10px 20px;
       font-weight: 600;
     }
-    
+
     .modal-actions .btn-primary {
-        background: #007bff;
-        color: white;
-    }
-    
-    .modal-actions .btn-secondary {
-        background: #f8f9fa;
-        color: #6c757d;
-        border: 1px solid #ced4da;
+      background: #007bff;
+      color: white;
     }
 
+    .modal-actions .btn-secondary {
+      background: #f8f9fa;
+      color: #6c757d;
+      border: 1px solid #ced4da;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div class="header">
@@ -303,7 +318,7 @@
 
     <div id="bookingsSection" style="display:none">
       <div class="bookings-grid" id="bookingsGrid">
-        </div>
+      </div>
     </div>
   </div>
 
@@ -315,13 +330,13 @@
       <div id="modalTitle" class="modal-title"></div>
       <p id="modalMessage" class="modal-message"></p>
       <div id="modalActions" class="modal-actions">
-        </div>
+      </div>
     </div>
   </div>
   <script>
     let adminSecret = '';
     // This should match the route to your server.js
-    const SERVER_URL = window.location.origin; 
+    const SERVER_URL = window.location.origin;
     const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 
     // --- Modal Utility Functions ---
@@ -340,65 +355,65 @@
      * @returns {Promise<boolean>} Resolves with true for confirmation, false otherwise.
      */
     function showModal(type, title, message, onConfirm = null) {
-        return new Promise(resolve => {
-            modalTitle.textContent = title;
-            modalMessage.textContent = message;
-            modalIcon.className = 'modal-icon'; // Reset class
-            modalActions.innerHTML = ''; // Clear buttons
+      return new Promise(resolve => {
+        modalTitle.textContent = title;
+        modalMessage.textContent = message;
+        modalIcon.className = 'modal-icon'; // Reset class
+        modalActions.innerHTML = ''; // Clear buttons
 
-            if (type === 'confirm') {
-                modalIcon.classList.add('modal-confirm-icon');
-                modalIcon.innerHTML = '⚠️';
-                
-                // Yes/Primary button
-                const btnPrimary = document.createElement('button');
-                btnPrimary.className = 'btn-primary';
-                btnPrimary.textContent = 'Yes, Proceed';
-                btnPrimary.onclick = () => { hideModal(); onConfirm && onConfirm(); resolve(true); };
-                
-                // No/Secondary button
-                const btnSecondary = document.createElement('button');
-                btnSecondary.className = 'btn-secondary';
-                btnSecondary.textContent = 'Cancel';
-                btnSecondary.onclick = () => { hideModal(); resolve(false); };
-                
-                modalActions.appendChild(btnPrimary);
-                modalActions.appendChild(btnSecondary);
+        if (type === 'confirm') {
+          modalIcon.classList.add('modal-confirm-icon');
+          modalIcon.innerHTML = '⚠️';
 
-            } else if (type === 'success') {
-                modalIcon.classList.add('modal-success-icon');
-                modalIcon.innerHTML = '✅';
-                
-                const btnPrimary = document.createElement('button');
-                btnPrimary.className = 'btn-primary';
-                btnPrimary.textContent = 'OK';
-                btnPrimary.onclick = () => { hideModal(); resolve(true); };
-                modalActions.appendChild(btnPrimary);
+          // Yes/Primary button
+          const btnPrimary = document.createElement('button');
+          btnPrimary.className = 'btn-primary';
+          btnPrimary.textContent = 'Yes, Proceed';
+          btnPrimary.onclick = () => { hideModal(); onConfirm && onConfirm(); resolve(true); };
 
-            } else if (type === 'error') {
-                modalIcon.classList.add('modal-error-icon');
-                modalIcon.innerHTML = '❌';
-                
-                const btnPrimary = document.createElement('button');
-                btnPrimary.className = 'btn-primary';
-                btnPrimary.textContent = 'Close';
-                btnPrimary.onclick = () => { hideModal(); resolve(false); };
-                modalActions.appendChild(btnPrimary);
-            }
+          // No/Secondary button
+          const btnSecondary = document.createElement('button');
+          btnSecondary.className = 'btn-secondary';
+          btnSecondary.textContent = 'Cancel';
+          btnSecondary.onclick = () => { hideModal(); resolve(false); };
 
-            customModal.classList.add('active');
-        });
+          modalActions.appendChild(btnPrimary);
+          modalActions.appendChild(btnSecondary);
+
+        } else if (type === 'success') {
+          modalIcon.classList.add('modal-success-icon');
+          modalIcon.innerHTML = '✅';
+
+          const btnPrimary = document.createElement('button');
+          btnPrimary.className = 'btn-primary';
+          btnPrimary.textContent = 'OK';
+          btnPrimary.onclick = () => { hideModal(); resolve(true); };
+          modalActions.appendChild(btnPrimary);
+
+        } else if (type === 'error') {
+          modalIcon.classList.add('modal-error-icon');
+          modalIcon.innerHTML = '❌';
+
+          const btnPrimary = document.createElement('button');
+          btnPrimary.className = 'btn-primary';
+          btnPrimary.textContent = 'Close';
+          btnPrimary.onclick = () => { hideModal(); resolve(false); };
+          modalActions.appendChild(btnPrimary);
+        }
+
+        customModal.classList.add('active');
+      });
     }
 
     function hideModal() {
-        customModal.classList.remove('active');
+      customModal.classList.remove('active');
     }
     // --- End Modal Utility Functions ---
 
 
     async function login() {
       const pin = document.getElementById('pinInput').value;
-      
+
       if (!pin) {
         await showModal('error', 'Login Error', 'Please enter the Admin PIN.');
         return;
@@ -416,21 +431,21 @@
         });
 
         const authData = await authResponse.json();
-        
+
         if (!authData.success) {
           throw new Error(authData.message || 'Invalid PIN');
         }
 
         // 2. Store the retrieved secret
         adminSecret = authData.adminSecret;
-        
+
         // 3. Load bookings using the new secret
         await loadPendingBookings();
 
         // 4. Update UI
         document.getElementById('authSection').style.display = 'none';
         document.getElementById('bookingsSection').style.display = 'block';
-        
+
       } catch (error) {
         await showModal('error', 'Login Failed', `Login failed: ${error.message}`);
         console.error('Login Error:', error);
@@ -467,7 +482,7 @@
 
     function renderBookings(bookings) {
       const grid = document.getElementById('bookingsGrid');
-      
+
       if (!bookings || !bookings.length) {
         grid.innerHTML = `
           <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #6c757d; font-size: 18px;">
@@ -527,60 +542,66 @@
     }
 
     async function confirmBooking(bookingId) {
-        await showModal('confirm', 'Confirm Booking', 
-            `Are you sure you want to CONFIRM booking #${bookingId}? This will notify the customer.`, 
-            async () => {
-                showLoading(`Confirming booking #${bookingId}...`);
-                try {
-                    const response = await fetch(`${WORKER_URL}/api/confirm-booking`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-App-Secret': adminSecret
-                        },
-                        body: JSON.stringify({ booking_id: bookingId })
-                    });
+      await showModal('confirm', 'Confirm Booking',
+        `Are you sure you want to CONFIRM booking #${bookingId}? This will notify the customer.`,
+        async () => {
+          showLoading(`Confirming booking #${bookingId}...`);
+          try {
+            const response = await fetch(`${WORKER_URL}/api/confirm-booking`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-App-Secret': adminSecret
+              },
+              body: JSON.stringify({ booking_id: bookingId })
+            });
 
-                    if (!response.ok) throw new Error('Failed to confirm booking');
-                    await showModal('success', 'Confirmed!', `Booking #${bookingId} confirmed successfully!`);
-                    await loadPendingBookings();
-                } catch (error) {
-                    console.error('Error confirming booking:', error);
-                    await showModal('error', 'Action Failed', `Failed to confirm booking #${bookingId}.`);
-                } finally {
-                    hideLoading();
-                }
-            }
-        );
+            if (!response.ok) throw new Error('Failed to confirm booking');
+            await showModal('success', 'Confirmed!', `Booking #${bookingId} confirmed successfully!`);
+            await loadPendingBookings();
+          } catch (error) {
+            console.error('Error confirming booking:', error);
+            await showModal('error', 'Action Failed', `Failed to confirm booking #${bookingId}.`);
+          } finally {
+            hideLoading();
+          }
+        }
+      );
     }
+
+    // --- MODIFICATION FOR declineBooking function in booking-admin.html ---
+
+    // --- MODIFICATION FOR declineBooking function in booking-admin.html ---
 
     async function declineBooking(bookingId) {
-        await showModal('confirm', 'Decline Booking', 
-            `Are you sure you want to DECLINE booking #${bookingId}? This action is irreversible and will delete the record.`, 
-            async () => {
-                showLoading(`Declining booking #${bookingId}...`);
-                try {
-                    const response = await fetch(`${WORKER_URL}/api/decline-booking`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-App-Secret': adminSecret
-                        },
-                        body: JSON.stringify({ booking_id: bookingId })
-                    });
+      if (!confirm(`Are you sure you want to DECLINE booking #${bookingId}? This action cannot be undone.`)) return;
 
-                    if (!response.ok) throw new Error('Failed to decline booking');
-                    await showModal('success', 'Declined & Deleted', `Booking #${bookingId} declined and deleted successfully!`);
-                    await loadPendingBookings();
-                } catch (error) {
-                    console.error('Error declining booking:', error);
-                    await showModal('error', 'Action Failed', `Failed to decline booking #${bookingId}.`);
-                } finally {
-                    hideLoading();
-                }
-            }
-        );
+      showLoading(`Declining booking #${bookingId}...`);
+      try {
+        const response = await fetch(`${WORKER_URL}/api/decline-booking`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-App-Secret': adminSecret
+          },
+          body: JSON.stringify({ booking_id: bookingId })
+        });
+
+        if (!response.ok) throw new Error('Failed to decline booking');
+
+        // *** MODIFIED SUCCESS MESSAGE HERE ***
+        await showModal('success', 'Declined', `Booking #${bookingId} status updated to DECLINED successfully!`);
+
+        await loadPendingBookings();
+      } catch (error) {
+        console.error('Error declining booking:', error);
+        await showModal('error', 'Action Failed', `Failed to decline booking #${bookingId}.`);
+      } finally {
+        hideLoading();
+      }
     }
+    // ---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     function showLoading(message = 'Processing...') {
       document.getElementById('loading').textContent = message;
@@ -598,4 +619,5 @@
     });
   </script>
 </body>
+
 </html>
