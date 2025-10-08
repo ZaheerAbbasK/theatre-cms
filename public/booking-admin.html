@@ -371,14 +371,16 @@
           btnPrimary.textContent = 'Yes, Proceed';
           btnPrimary.onclick = () => { hideModal(); onConfirm && onConfirm(); resolve(true); };
 
-          // No/Secondary button
+          // No/Secondary button (Cancel)
           const btnSecondary = document.createElement('button');
           btnSecondary.className = 'btn-secondary';
           btnSecondary.textContent = 'Cancel';
           btnSecondary.onclick = () => { hideModal(); resolve(false); };
 
-          modalActions.appendChild(btnPrimary);
+          // *** SWAPPED BUTTON ORDER HERE: Cancel (Secondary) on left, Yes (Primary) on right ***
           modalActions.appendChild(btnSecondary);
+          modalActions.appendChild(btnPrimary);
+          // ***********************************************************************************
 
         } else if (type === 'success') {
           modalIcon.classList.add('modal-success-icon');
@@ -569,38 +571,37 @@
       );
     }
 
-    // --- MODIFICATION FOR declineBooking function in booking-admin.html ---
-
-    // --- MODIFICATION FOR declineBooking function in booking-admin.html ---
-
+    // --- MODIFIED declineBooking function using modal and status update ---
     async function declineBooking(bookingId) {
-      if (!confirm(`Are you sure you want to DECLINE booking #${bookingId}? This action cannot be undone.`)) return;
+      await showModal('confirm', 'Decline Booking',
+        `Are you sure you want to DECLINE booking #${bookingId}? The customer will be notified, and the booking status will be set to 'DECLINED' in the records.`,
+        async () => {
+          showLoading(`Declining booking #${bookingId}...`);
+          try {
+            const response = await fetch(`${WORKER_URL}/api/decline-booking`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-App-Secret': adminSecret
+              },
+              body: JSON.stringify({ booking_id: bookingId })
+            });
 
-      showLoading(`Declining booking #${bookingId}...`);
-      try {
-        const response = await fetch(`${WORKER_URL}/api/decline-booking`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-App-Secret': adminSecret
-          },
-          body: JSON.stringify({ booking_id: bookingId })
-        });
+            if (!response.ok) throw new Error('Failed to decline booking');
 
-        if (!response.ok) throw new Error('Failed to decline booking');
+            // Success message confirms the status update, not deletion
+            await showModal('success', 'Declined', `Booking #${bookingId} status updated to DECLINED successfully!`);
 
-        // *** MODIFIED SUCCESS MESSAGE HERE ***
-        await showModal('success', 'Declined', `Booking #${bookingId} status updated to DECLINED successfully!`);
-
-        await loadPendingBookings();
-      } catch (error) {
-        console.error('Error declining booking:', error);
-        await showModal('error', 'Action Failed', `Failed to decline booking #${bookingId}.`);
-      } finally {
-        hideLoading();
-      }
+            await loadPendingBookings();
+          } catch (error) {
+            console.error('Error declining booking:', error);
+            await showModal('error', 'Action Failed', `Failed to decline booking #${bookingId}.`);
+          } finally {
+            hideLoading();
+          }
+        }
+      );
     }
-    // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------
 
     function showLoading(message = 'Processing...') {
