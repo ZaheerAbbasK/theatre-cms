@@ -10,16 +10,18 @@ app.use(cors());
 app.use(express.json());
 const path = require("path");
 
-const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
+c// In server.js (Ensure this constant is defined near the top)
+const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev'; 
 
-// serve files from the "public" folder
-app.use(express.static(path.join(__dirname, "public")));
-
+// --------------------------------------------------------------------
+// ✅ SECURE ROUTE: Cloudflare Worker Proxy
+// --------------------------------------------------------------------
 app.post('/api/proxy-worker', async (req, res) => {
-    // 1. Get the target endpoint and required secret level from the client request body
+    // 1. Get the target endpoint, method, body, and required secret level from the client
+    // Client sends instructions: where to go (endpoint), what to do (method), and the required security level.
     const { endpoint, method, body, secretLevel } = req.body;
     
-    // 2. Determine which secret to use based on the required level
+    // 2. Determine which secret to use from the server's environment variables
     let appSecret;
     switch (secretLevel) {
         case 'read':
@@ -29,29 +31,39 @@ app.post('/api/proxy-worker', async (req, res) => {
             appSecret = process.env.DB_WRITE_SECRET;
             break;
         case 'admin':
-            appSecret = process.env.DB_ADMIN_SECRET;
+            appSecret = processs.env.DB_ADMIN_SECRET;
             break;
         default:
             return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
     }
 
     if (!appSecret) {
-        console.error(`ERROR: Secret for level '${secretLevel}' not found in environment variables.`);
-        return res.status(500).json({ success: false, error: 'Server configuration error.' });
+        // This fails if the server cannot read the secrets (e.g., .env file missing/bad deployment)
+        console.error(`ERROR: Secret for level '${secretLevel}' not found.`);
+        return res.status(500).json({ success: false, error: 'Server configuration error: Missing required secret.' });
     }
-
+    
+    // 3. Construct the full URL and request options
+    const fullWorkerUrl = `${WORKER_URL}${endpoint}`;
+    
+    const fetchOptions = {
+        method: method, 
+        headers: {
+            // Forward the Content-Type
+            'Content-Type': 'application/json',
+            // Inject the sensitive secret here, safely hidden from the browser
+            'X-App-Secret': appSecret 
+        }
+    };
+    
+    // Only attach body payload for requests that require one (POST, PUT, etc.)
+    if (method !== 'GET' && body) {
+        fetchOptions.body = JSON.stringify(body);
+    }
+    
     try {
-        // 3. Forward the request to the Cloudflare Worker
-        const workerResponse = await fetch(`${WORKER_URL}${endpoint}`, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                // 4. Attach the sensitive secret securely from the server's environment
-                'X-App-Secret': appSecret 
-            },
-            // Include body for POST/PUT requests
-            body: body ? JSON.stringify(body) : undefined 
-        });
+        // 4. Forward the request to the Cloudflare Worker
+        const workerResponse = await fetch(fullWorkerUrl, fetchOptions);
 
         // 5. Send the Worker's response back to the client
         const workerData = await workerResponse.json();
@@ -62,7 +74,7 @@ app.post('/api/proxy-worker', async (req, res) => {
         res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
     }
 });
-
+// --------------------------------------------------------------------
 // fallback: open admin.html when hitting /admin
 app.get("/admin", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "admin.html"));
