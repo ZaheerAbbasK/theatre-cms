@@ -10,13 +10,64 @@ app.use(cors());
 app.use(express.json());
 const path = require("path");
 
+const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
+
 // serve files from the "public" folder
 app.use(express.static(path.join(__dirname, "public")));
+
+app.post('/api/proxy-worker', async (req, res) => {
+    // 1. Get the target endpoint and required secret level from the client request body
+    const { endpoint, method, body, secretLevel } = req.body;
+    
+    // 2. Determine which secret to use based on the required level
+    let appSecret;
+    switch (secretLevel) {
+        case 'read':
+            appSecret = process.env.DB_READ_SECRET;
+            break;
+        case 'write':
+            appSecret = process.env.DB_WRITE_SECRET;
+            break;
+        case 'admin':
+            appSecret = process.env.DB_ADMIN_SECRET;
+            break;
+        default:
+            return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
+    }
+
+    if (!appSecret) {
+        console.error(`ERROR: Secret for level '${secretLevel}' not found in environment variables.`);
+        return res.status(500).json({ success: false, error: 'Server configuration error.' });
+    }
+
+    try {
+        // 3. Forward the request to the Cloudflare Worker
+        const workerResponse = await fetch(`${WORKER_URL}${endpoint}`, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                // 4. Attach the sensitive secret securely from the server's environment
+                'X-App-Secret': appSecret 
+            },
+            // Include body for POST/PUT requests
+            body: body ? JSON.stringify(body) : undefined 
+        });
+
+        // 5. Send the Worker's response back to the client
+        const workerData = await workerResponse.json();
+        res.status(workerResponse.status).json(workerData);
+
+    } catch (error) {
+        console.error('Worker Proxy Error:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
+    }
+});
 
 // fallback: open admin.html when hitting /admin
 app.get("/admin", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "admin.html"));
 });
+
 // ✅ Cloudinary config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
