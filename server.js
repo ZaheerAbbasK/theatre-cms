@@ -10,7 +10,6 @@ app.use(cors());
 app.use(express.json());
 const path = require("path");
 
-c// In server.js (Ensure this constant is defined near the top)
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev'; 
 
 // --------------------------------------------------------------------
