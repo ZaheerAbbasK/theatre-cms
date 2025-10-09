@@ -30,7 +30,7 @@ app.post('/api/proxy-worker', async (req, res) => {
             appSecret = process.env.DB_WRITE_SECRET;
             break;
         case 'admin':
-            appSecret = processs.env.DB_ADMIN_SECRET;
+            appSecret = process.env.DB_ADMIN_SECRET;
             break;
         default:
             return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
