@@ -16,37 +16,34 @@ const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 // ✅ SECURE ROUTE: Cloudflare Worker Proxy
 // --------------------------------------------------------------------
 app.post('/api/proxy-worker', async (req, res) => {
-    const { endpoint, method, body, secretLevel } = req.body;
-    
-    let appSecret;
-    switch (secretLevel) {
-        case 'read':
-            appSecret = process.env.DB_READ_SECRET;
-            break;
-        case 'write':
-            appSecret = process.env.DB_WRITE_SECRET;
-            break;
-        case 'admin':
-            appSecret = process.env.DB_ADMIN_SECRET;
-            break;
-        default:
-            return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
+  const { endpoint, method, body, secretLevel } = req.body;
+  let appSecret;
+  switch (secretLevel) {
+    case 'read':
+      appSecret = process.env.DB_READ_SECRET;
+      break;
+    case 'write':
+      appSecret = process.env.DB_WRITE_SECRET;
+      break;
+    case 'admin':
+      appSecret = process.env.DB_ADMIN_SECRET;
+      break;
+    default:
+      return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
+  }
+  if (!appSecret) {
+    console.error(`ERROR: Secret for level '${secretLevel}' not found.`);
+    return res.status(500).json({ success: false, error: 'Server configuration error: Missing required secret.' });
+  }
+  const fullWorkerUrl = `${WORKER_URL}${endpoint}`;
+  const fetchOptions = {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-App-Secret': appSecret
     }
-
-    if (!appSecret) {
-        console.error(`ERROR: Secret for level '${secretLevel}' not found.`);
-        return res.status(500).json({ success: false, error: 'Server configuration error: Missing required secret.' });
-    }
-    
-    const fullWorkerUrl = `${WORKER_URL}${endpoint}`;
-    
-    const fetchOptions = {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json',
-            'X-App-Secret': appSecret
-        }
-    };
+  };
+  // ...
     
     if (method !== 'GET' && body) {
         fetchOptions.body = JSON.stringify(body);
