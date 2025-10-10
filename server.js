@@ -24,6 +24,7 @@ app.post('/api/proxy-worker', async (req, res) => {
       break;
     case 'write':
       appSecret = process.env.DB_WRITE_SECRET;
+      
       break;
     case 'admin':
       appSecret = process.env.DB_ADMIN_SECRET;
@@ -43,7 +44,6 @@ app.post('/api/proxy-worker', async (req, res) => {
       'X-App-Secret': appSecret
     }
   };
-  // ...
     
     if (method !== 'GET' && body) {
         fetchOptions.body = JSON.stringify(body);
