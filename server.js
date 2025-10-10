@@ -3,6 +3,8 @@ const cors = require("cors");
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 require("dotenv").config();
 
 const app = express();
@@ -11,6 +13,13 @@ app.use(express.json());
 const path = require("path");
 
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
+
+// Auto-generate JWT secrets on server start
+const ACCESS_TOKEN_SECRET = crypto.randomBytes(32).toString('hex');
+const REFRESH_TOKEN_SECRET = crypto.randomBytes(32).toString('hex');
+
+// In-memory refresh token storage (use a database in production)
+let refreshTokens = [];
 
 // --------------------------------------------------------------------
 // ✅ SECURE ROUTE: Cloudflare Worker Proxy
@@ -24,7 +33,6 @@ app.post('/api/proxy-worker', async (req, res) => {
       break;
     case 'write':
       appSecret = process.env.DB_WRITE_SECRET;
-      
       break;
     case 'admin':
       appSecret = process.env.DB_ADMIN_SECRET;
@@ -45,53 +53,53 @@ app.post('/api/proxy-worker', async (req, res) => {
     }
   };
     
-    if (method !== 'GET' && body) {
-        fetchOptions.body = JSON.stringify(body);
-    }
+  if (method !== 'GET' && body) {
+    fetchOptions.body = JSON.stringify(body);
+  }
     
-    try {
-        const workerResponse = await fetch(fullWorkerUrl, fetchOptions);
-        const workerData = await workerResponse.json();
-        res.status(workerResponse.status).json(workerData);
-    } catch (error) {
-        console.error('Worker Proxy Error:', error);
-        res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
-    }
+  try {
+    const workerResponse = await fetch(fullWorkerUrl, fetchOptions);
+    const workerData = await workerResponse.json();
+    res.status(workerResponse.status).json(workerData);
+  } catch (error) {
+    console.error('Worker Proxy Error:', error);
+    res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
+  }
 });
 
 // Add this function to securely URL-encode parameters
 function urlEncode(str) {
-    return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
 // ✅ NEW ROUTE: Fetch UPI recipient details (VPA and name)
 app.get('/api/upi-details', (req, res) => {
-    res.json({
-        vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
-        name: 'Mr RAJU Y BASAPUR'
-    });
+  res.json({
+    vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
+    name: 'Mr RAJU Y BASAPUR'
+  });
 });
 
 // ✅ NEW ROUTE FOR UPI REDIRECT
 app.get('/api/pay-upi', (req, res) => {
-    const bookingId = req.query.bookingId || 'NO_BOOKING_ID';
-    const amount = parseFloat(req.query.amount).toFixed(2) || '0.00';
-    const uniqueOrderId = `BOOKING-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const bookingId = req.query.bookingId || 'NO_BOOKING_ID';
+  const amount = parseFloat(req.query.amount).toFixed(2) || '0.00';
+  const uniqueOrderId = `BOOKING-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    const payeeVPA = 'BHARATPE2S0K0E0M3O64927@unitype';
-    const payeeName = 'Mr RAJU Y BASAPUR';
-    const transactionNote = `Payment for ${bookingId}`;
+  const payeeVPA = 'BHARATPE2S0K0E0M3O64927@unitype';
+  const payeeName = 'Mr RAJU Y BASAPUR';
+  const transactionNote = `Payment for ${bookingId}`;
 
-    const upiLink = `upi://pay?` +
-        `pa=${urlEncode(payeeVPA)}` +
-        `&pn=${urlEncode(payeeName)}` +
-        `&am=${amount}` +
-        `&cu=INR` +
-        `&tn=${urlEncode(transactionNote)}` +
-        `&tr=${urlEncode(uniqueOrderId)}`;
+  const upiLink = `upi://pay?` +
+    `pa=${urlEncode(payeeVPA)}` +
+    `&pn=${urlEncode(payeeName)}` +
+    `&am=${amount}` +
+    `&cu=INR` +
+    `&tn=${urlEncode(transactionNote)}` +
+    `&tr=${urlEncode(uniqueOrderId)}`;
 
-    console.log(`Redirecting to: ${upiLink}`);
-    res.redirect(302, upiLink);
+  console.log(`Redirecting to: ${upiLink}`);
+  res.redirect(302, upiLink);
 });
 
 // --------------------------------------------------------------------
@@ -107,22 +115,72 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Auth route
+// Generate JWT tokens
+function generateAccessToken(user) {
+  return jwt.sign(user, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
+}
+
+function generateRefreshToken(user) {
+  return jwt.sign(user, REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
+}
+
+// Auth route - PIN-based login
 app.post("/api/auth", (req, res) => {
   const { pin } = req.body;
   
   if (pin === process.env.ADMINPIN) {
+    const user = { id: 'admin', role: 'admin' };
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    refreshTokens.push(refreshToken);
+    
     res.json({
       success: true,
+      accessToken,
+      refreshToken,
       adminSecret: process.env.DB_ADMIN_SECRET
     });
   } else {
-    res.json({
+    res.status(401).json({
       success: false,
       message: "Invalid PIN"
     });
   }
 });
+
+// Refresh token route
+app.post("/api/refresh-token", (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken || !refreshTokens.includes(refreshToken)) {
+    return res.status(403).json({ success: false, message: "Invalid or expired refresh token" });
+  }
+
+  try {
+    const user = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
+    const accessToken = generateAccessToken({ id: user.id, role: user.role });
+    res.json({ success: true, accessToken });
+  } catch (error) {
+    res.status(403).json({ success: false, message: "Invalid refresh token" });
+  }
+});
+
+// Middleware to verify JWT
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ message: "Access token required" });
+  }
+
+  try {
+    const user = jwt.verify(token, ACCESS_TOKEN_SECRET);
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(403).json({ message: "Invalid or expired access token" });
+  }
+}
 
 // Add a route to serve booking-admin.html
 app.get("/booking-admin", (req, res) => {
@@ -131,8 +189,8 @@ app.get("/booking-admin", (req, res) => {
 
 const upload = multer();
 
-// ✅ API route: Get latest theatre images
-app.get("/api/images", async (req, res) => {
+// ✅ API route: Get latest theatre images (protected)
+app.get("/api/images", authenticateToken, async (req, res) => {
   try {
     const folders = ["birthday", "couple", "private"];
     const urls = {};
@@ -157,15 +215,10 @@ app.get("/api/images", async (req, res) => {
   }
 });
 
-// ✅ API route: Upload theatre image (with PIN)
-app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
+// ✅ API route: Upload theatre image (protected)
+app.post("/upload/:theatre", authenticateToken, upload.single("image"), async (req, res) => {
   try {
     const theatre = req.params.theatre;
-    const pin = req.body.pin;
-
-    if (pin !== process.env.ADMINPIN) {
-      return res.status(403).json({ message: "Invalid PIN" });
-    }
 
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
