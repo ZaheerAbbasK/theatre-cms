@@ -73,6 +73,15 @@ app.post('/api/proxy-worker', async (req, res) => {
         res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
     }
 });
+
+// Add this function to securely URL-encode parameters
+// ✅ NEW ROUTE: Fetch UPI recipient details (VPA and name)
+app.get('/api/upi-details', (req, res) => {
+  res.json({
+    vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
+    name: 'Mr RAJU Y BASAPUR'
+  });
+});
 // --------------------------------------------------------------------
 // fallback: open admin.html when hitting /admin
 app.get("/admin", (req, res) => {
