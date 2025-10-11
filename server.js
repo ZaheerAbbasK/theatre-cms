@@ -36,7 +36,7 @@ function authenticateToken(req, res, next) {
 // --------------------------------------------------------------------
 // ✅ SECURE ROUTE: Cloudflare Worker Proxy
 // --------------------------------------------------------------------
-app.post('/api/proxy-worker', async (req, res) => {
+app.post('/api/proxy-worker', authenticateToken, async (req, res) => {
     const { endpoint, method, body, secretLevel } = req.body;
     
     let appSecret;
@@ -83,7 +83,7 @@ app.post('/api/proxy-worker', async (req, res) => {
     }
 });
 
-// Add this function to securely URL-encode parameters
+// Function to securely URL-encode parameters
 function urlEncode(str) {
     return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
@@ -117,7 +117,7 @@ app.get('/api/pay-upi', (req, res) => {
     console.log(`Redirecting to: ${upiLink}`);
     res.redirect(302, upiLink);
 });
-const upload = multer(); // for parsing multipart/form-data
+
 // --------------------------------------------------------------------
 // fallback: open admin.html when hitting /admin
 app.get("/admin", (req, res) => {
@@ -131,28 +131,27 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Auth route with PIN and JWT tokens
-app.post("/api/auth", (req, res) => {
+// Auth route to issue JWT tokens
+app.post("/api/auth", async (req, res) => {
   const { pin } = req.body;
   
   if (pin !== process.env.ADMINPIN) {
-    return res.json({
+    return res.status(401).json({
       success: false,
       message: "Invalid PIN"
     });
   }
 
-  // Generate JWT tokens
+  // Generate tokens
   const user = { role: 'admin' };
   const accessToken = jwt.sign(user, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
   const refreshToken = jwt.sign(user, REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
 
-  // Store refresh token (in memory, replace with DB in production)
+  // Store refresh token
   refreshTokens.push(refreshToken);
 
   res.json({
     success: true,
-    adminSecret: process.env.DB_ADMIN_SECRET,
     accessToken,
     refreshToken
   });
@@ -178,8 +177,10 @@ app.get("/booking-admin", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "booking-admin.html"));
 });
 
+const upload = multer();
+
 // ✅ API route: Get latest theatre images
-app.get("/api/images", async (req, res) => {
+app.get("/api/images", authenticateToken, async (req, res) => {
   try {
     const folders = ["birthday", "couple", "private"];
     const urls = {};
@@ -204,15 +205,10 @@ app.get("/api/images", async (req, res) => {
   }
 });
 
-// ✅ API route: Upload theatre image (with PIN)
-app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
+// ✅ API route: Upload theatre image (with JWT)
+app.post("/upload/:theatre", authenticateToken, upload.single("image"), async (req, res) => {
   try {
     const theatre = req.params.theatre;
-    const pin = req.body.pin;
-
-    if (pin !== process.env.ADMINPIN) {
-      return res.status(403).json({ message: "Invalid PIN" });
-    }
 
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
