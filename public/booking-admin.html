@@ -334,60 +334,10 @@
     </div>
   </div>
   <script>
-    let accessToken = '';
-    let refreshToken = '';
+    let adminSecret = '';
+    // This should match the route to your server.js
     const SERVER_URL = window.location.origin;
     const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
-
-    // Load tokens from sessionStorage on page load
-    function loadTokens() {
-      const storedRefreshToken = sessionStorage.getItem('refreshToken');
-      if (storedRefreshToken) {
-        refreshToken = storedRefreshToken;
-        // Attempt to refresh access token on page load
-        refreshAccessToken();
-      } else {
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('bookingsSection').style.display = 'none';
-      }
-    }
-
-    // Refresh access token
-    async function refreshAccessToken() {
-      if (!refreshToken) {
-        showModal('error', 'Session Expired', 'Please login again.');
-        sessionStorage.removeItem('refreshToken');
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('bookingsSection').style.display = 'none';
-        return;
-      }
-
-      try {
-        const response = await fetch(`${SERVER_URL}/api/refresh-token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-        const data = await response.json();
-        if (data.success) {
-          accessToken = data.accessToken;
-          document.getElementById('authSection').style.display = 'none';
-          document.getElementById('bookingsSection').style.display = 'block';
-          await loadPendingBookings();
-        } else {
-          throw new Error(data.error || 'Failed to refresh token');
-        }
-      } catch (error) {
-        console.error('Token Refresh Error:', error);
-        showModal('error', 'Session Expired', 'Please login again.');
-        sessionStorage.removeItem('refreshToken');
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('bookingsSection').style.display = 'none';
-      }
-    }
-
-    // Auto-refresh access token every 25 minutes
-    setInterval(refreshAccessToken, 25 * 60 * 1000);
 
     // --- Modal Utility Functions ---
     const customModal = document.getElementById('customModal');
@@ -396,6 +346,14 @@
     const modalIcon = document.getElementById('modalIcon');
     const modalActions = document.getElementById('modalActions');
 
+    /**
+     * Shows a custom confirmation or alert modal.
+     * @param {string} type - 'confirm', 'success', or 'error'.
+     * @param {string} title - The title of the modal.
+     * @param {string} message - The main message.
+     * @param {function} [onConfirm] - Function to run if confirmed (only for 'confirm' type).
+     * @returns {Promise<boolean>} Resolves with true for confirmation, false otherwise.
+     */
     function showModal(type, title, message, onConfirm = null) {
       return new Promise(resolve => {
         modalTitle.textContent = title;
@@ -407,18 +365,22 @@
           modalIcon.classList.add('modal-confirm-icon');
           modalIcon.innerHTML = '⚠️';
 
+          // Yes/Primary button
           const btnPrimary = document.createElement('button');
           btnPrimary.className = 'btn-primary';
           btnPrimary.textContent = 'Yes, Proceed';
           btnPrimary.onclick = () => { hideModal(); onConfirm && onConfirm(); resolve(true); };
 
+          // No/Secondary button (Cancel)
           const btnSecondary = document.createElement('button');
           btnSecondary.className = 'btn-secondary';
           btnSecondary.textContent = 'Cancel';
           btnSecondary.onclick = () => { hideModal(); resolve(false); };
 
+          // *** SWAPPED BUTTON ORDER HERE: Cancel (Secondary) on left, Yes (Primary) on right ***
           modalActions.appendChild(btnSecondary);
           modalActions.appendChild(btnPrimary);
+          // ***********************************************************************************
 
         } else if (type === 'success') {
           modalIcon.classList.add('modal-success-icon');
@@ -448,6 +410,8 @@
     function hideModal() {
       customModal.classList.remove('active');
     }
+    // --- End Modal Utility Functions ---
+
 
     async function login() {
       const pin = document.getElementById('pinInput').value;
@@ -459,12 +423,13 @@
 
       showLoading('Authenticating...');
       try {
+        // 1. Authenticate PIN and get the Admin Secret from the server
         const authResponse = await fetch(`${SERVER_URL}/api/auth`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ pin })
+          body: JSON.stringify({ pin: pin })
         });
 
         const authData = await authResponse.json();
@@ -473,15 +438,13 @@
           throw new Error(authData.message || 'Invalid PIN');
         }
 
-        // Store tokens
-        accessToken = authData.accessToken;
-        refreshToken = authData.refreshToken;
-        sessionStorage.setItem('refreshToken', refreshToken);
+        // 2. Store the retrieved secret
+        adminSecret = authData.adminSecret;
 
-        // Load bookings
+        // 3. Load bookings using the new secret
         await loadPendingBookings();
 
-        // Update UI
+        // 4. Update UI
         document.getElementById('authSection').style.display = 'none';
         document.getElementById('bookingsSection').style.display = 'block';
 
@@ -494,7 +457,7 @@
     }
 
     async function loadPendingBookings() {
-      if (!accessToken) {
+      if (!adminSecret) {
         await showModal('error', 'Access Required', 'Not logged in. Please login first.');
         return;
       }
@@ -502,24 +465,18 @@
       try {
         const response = await fetch(`${WORKER_URL}/api/get-pending-bookings`, {
           headers: {
-            'Authorization': `Bearer ${accessToken}`
+            // Use the secret retrieved from the server
+            'X-App-Secret': adminSecret
           }
         });
 
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            // Try refreshing token
-            await refreshAccessToken();
-            return;
-          }
-          throw new Error('Failed to fetch bookings');
-        }
+        if (!response.ok) throw new Error('Failed to fetch bookings');
 
         const data = await response.json();
         renderBookings(data.bookings);
       } catch (error) {
         console.error('Error loading bookings:', error);
-        await showModal('error', 'Fetch Error', 'Failed to load bookings. Please try again.');
+        await showModal('error', 'Fetch Error', 'Failed to load bookings. Check WORKER_URL and Admin Secret.');
       } finally {
         hideLoading();
       }
@@ -596,18 +553,12 @@
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
+                'X-App-Secret': adminSecret
               },
               body: JSON.stringify({ booking_id: bookingId })
             });
 
-            if (!response.ok) {
-              if (response.status === 401 || response.status === 403) {
-                await refreshAccessToken();
-                return;
-              }
-              throw new Error('Failed to confirm booking');
-            }
+            if (!response.ok) throw new Error('Failed to confirm booking');
             await showModal('success', 'Confirmed!', `Booking #${bookingId} confirmed successfully!`);
             await loadPendingBookings();
           } catch (error) {
@@ -620,6 +571,7 @@
       );
     }
 
+    // --- MODIFIED declineBooking function using modal and status update ---
     async function declineBooking(bookingId) {
       await showModal('confirm', 'Decline Booking',
         `Are you sure you want to DECLINE booking #${bookingId}? The customer will be notified, and the booking status will be set to 'DECLINED' in the records.`,
@@ -630,20 +582,16 @@
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
+                'X-App-Secret': adminSecret
               },
               body: JSON.stringify({ booking_id: bookingId })
             });
 
-            if (!response.ok) {
-              if (response.status === 401 || response.status === 403) {
-                await refreshAccessToken();
-                return;
-              }
-              throw new Error('Failed to decline booking');
-            }
+            if (!response.ok) throw new Error('Failed to decline booking');
 
+            // Success message confirms the status update, not deletion
             await showModal('success', 'Declined', `Booking #${bookingId} status updated to DECLINED successfully!`);
+
             await loadPendingBookings();
           } catch (error) {
             console.error('Error declining booking:', error);
@@ -654,6 +602,7 @@
         }
       );
     }
+    // ---------------------------------------------------------------------
 
     function showLoading(message = 'Processing...') {
       document.getElementById('loading').textContent = message;
@@ -666,12 +615,9 @@
 
     // Refresh button handler
     document.getElementById('refreshBtn').addEventListener('click', () => {
-      if (accessToken) loadPendingBookings();
+      if (adminSecret) loadPendingBookings();
       else showModal('error', 'Access Required', 'Please login first to refresh bookings.');
     });
-
-    // Initialize on page load
-    loadTokens();
   </script>
 </body>
 
