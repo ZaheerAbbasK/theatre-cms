@@ -14,8 +14,8 @@ const path = require("path");
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 
 // JWT Secret Keys (ensure these are in .env)
-const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_TOKEN_SECRET || "your_access_token_secret";
-const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET || "your_refresh_token_secret";
+const ACCESS_TOKEN_SECRET = "your_access_token_secret";
+const REFRESH_TOKEN_SECRET = "your_refresh_token_secret";
 
 // Store refresh tokens in memory (in production, use a database)
 let refreshTokens = [];
