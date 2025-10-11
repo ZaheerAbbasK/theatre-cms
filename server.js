@@ -160,7 +160,7 @@ function jwt(){
     accessToken,
     refreshToken
   });
-});
+};
 
 // Refresh token endpoint
 app.post("/api/refresh-token", (req, res) => {
