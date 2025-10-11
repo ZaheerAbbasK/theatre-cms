@@ -3,6 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
@@ -11,6 +12,26 @@ app.use(express.json());
 const path = require("path");
 
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
+
+// JWT Secret Keys (ensure these are in .env)
+const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_TOKEN_SECRET || "your_access_token_secret";
+const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET || "your_refresh_token_secret";
+
+// Store refresh tokens in memory (in production, use a database)
+let refreshTokens = [];
+
+// Middleware to verify access token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
+  if (!token) return res.status(401).json({ success: false, error: 'Access token required' });
+
+  jwt.verify(token, ACCESS_TOKEN_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ success: false, error: 'Invalid or expired access token' });
+    req.user = user;
+    next();
+  });
+}
 
 // --------------------------------------------------------------------
 // ✅ SECURE ROUTE: Cloudflare Worker Proxy
@@ -110,29 +131,52 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Auth route
+// Auth route with PIN and JWT tokens
 app.post("/api/auth", (req, res) => {
   const { pin } = req.body;
   
-  if (pin === process.env.ADMINPIN) {
-    res.json({
-      success: true,
-      adminSecret: process.env.DB_ADMIN_SECRET
-    });
-  } else {
-    res.json({
+  if (pin !== process.env.ADMINPIN) {
+    return res.json({
       success: false,
       message: "Invalid PIN"
     });
   }
+
+  // Generate JWT tokens
+  const user = { role: 'admin' };
+  const accessToken = jwt.sign(user, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
+  const refreshToken = jwt.sign(user, REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
+
+  // Store refresh token (in memory, replace with DB in production)
+  refreshTokens.push(refreshToken);
+
+  res.json({
+    success: true,
+    adminSecret: process.env.DB_ADMIN_SECRET,
+    accessToken,
+    refreshToken
+  });
+});
+
+// Refresh token endpoint
+app.post("/api/refresh-token", (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken || !refreshTokens.includes(refreshToken)) {
+    return res.status(403).json({ success: false, error: 'Invalid or expired refresh token' });
+  }
+
+  jwt.verify(refreshToken, REFRESH_TOKEN_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ success: false, error: 'Invalid refresh token' });
+    
+    const accessToken = jwt.sign({ role: 'admin' }, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
+    res.json({ success: true, accessToken });
+  });
 });
 
 // Add a route to serve booking-admin.html
 app.get("/booking-admin", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "booking-admin.html"));
 });
-
-const upload = multer();
 
 // ✅ API route: Get latest theatre images
 app.get("/api/images", async (req, res) => {
