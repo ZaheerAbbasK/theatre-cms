@@ -12,7 +12,7 @@ app.use(express.json());
 const path = require("path");
 
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
-
+/*
 // JWT Secret Keys (ensure these are in .env)
 const ACCESS_TOKEN_SECRET = "your_access_token_secret";
 const REFRESH_TOKEN_SECRET = "your_refresh_token_secret";
@@ -32,6 +32,7 @@ function authenticateToken(req, res, next) {
     next();
   });
 }
+  */
 
 // --------------------------------------------------------------------
 // ✅ SECURE ROUTE: Cloudflare Worker Proxy
@@ -147,25 +148,26 @@ app.post("/api/auth", (req, res) => {
   }
 });
 
-  function jwt() {
-    // Generate JWT tokens
-    const user = { role: 'admin' };
-    const accessToken = jwt.sign(user, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
-    const refreshToken = jwt.sign(user, REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
-
-    // Store refresh token (in memory, replace with DB in production)
-    refreshTokens.push(refreshToken);
-
-    res.json({
-      success: true,
-      adminSecret: process.env.DB_ADMIN_SECRET,
-      accessToken,
-      refreshToken
-    });
-  };
-
-  // Refresh token endpoint
 /*
+function jwt() {
+  // Generate JWT tokens
+  const user = { role: 'admin' };
+  const accessToken = jwt.sign(user, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
+  const refreshToken = jwt.sign(user, REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
+
+  // Store refresh token (in memory, replace with DB in production)
+  refreshTokens.push(refreshToken);
+
+  res.json({
+    success: true,
+    adminSecret: process.env.DB_ADMIN_SECRET,
+    accessToken,
+    refreshToken
+  });
+};
+
+// Refresh token endpoint
+
   app.post("/api/refresh-token", (req, res) => {
     const { refreshToken } = req.body;
     if (!refreshToken || !refreshTokens.includes(refreshToken)) {
@@ -181,70 +183,70 @@ app.post("/api/auth", (req, res) => {
   });
 */
 
-  // Add a route to serve booking-admin.html
-  app.get("/booking-admin", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "booking-admin.html"));
-  });
+// Add a route to serve booking-admin.html
+app.get("/booking-admin", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "booking-admin.html"));
+});
 
-  const upload = multer();
+const upload = multer();
 
-  // ✅ API route: Get latest theatre images
-  app.get("/api/images", async (req, res) => {
-    try {
-      const folders = ["birthday", "couple", "private"];
-      const urls = {};
+// ✅ API route: Get latest theatre images
+app.get("/api/images", async (req, res) => {
+  try {
+    const folders = ["birthday", "couple", "private"];
+    const urls = {};
 
-      for (let folder of folders) {
-        const result = await cloudinary.search
-          .expression(`folder:theatres/${folder}`)
-          .sort_by("uploaded_at", "desc")
-          .max_results(1)
-          .execute();
+    for (let folder of folders) {
+      const result = await cloudinary.search
+        .expression(`folder:theatres/${folder}`)
+        .sort_by("uploaded_at", "desc")
+        .max_results(1)
+        .execute();
 
-        urls[folder] =
-          result.resources.length > 0
-            ? result.resources[0].secure_url
-            : `https://via.placeholder.com/600x400?text=${folder}`;
-      }
-
-      res.json(urls);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Failed to fetch images" });
+      urls[folder] =
+        result.resources.length > 0
+          ? result.resources[0].secure_url
+          : `https://via.placeholder.com/600x400?text=${folder}`;
     }
-  });
 
-  // ✅ API route: Upload theatre image (with PIN)
-  app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
-    try {
-      const theatre = req.params.theatre;
-      const pin = req.body.pin;
+    res.json(urls);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch images" });
+  }
+});
 
-      if (pin !== process.env.ADMINPIN) {
-        return res.status(403).json({ message: "Invalid PIN" });
-      }
+// ✅ API route: Upload theatre image (with PIN)
+app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
+  try {
+    const theatre = req.params.theatre;
+    const pin = req.body.pin;
 
-      if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
-      }
-
-      const result = await new Promise((resolve, reject) => {
-        let cldUploadStream = cloudinary.uploader.upload_stream(
-          { folder: `theatres/${theatre}`, overwrite: true, public_id: "default" },
-          (err, result) => {
-            if (err) reject(err);
-            else resolve(result);
-          }
-        );
-        streamifier.createReadStream(req.file.buffer).pipe(cldUploadStream);
-      });
-
-      res.json({ message: "Upload successful", url: result.secure_url });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: "Upload failed" });
+    if (pin !== process.env.ADMINPIN) {
+      return res.status(403).json({ message: "Invalid PIN" });
     }
-  });
 
-  // ✅ Export the app for Vercel serverless
-  module.exports = app;
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const result = await new Promise((resolve, reject) => {
+      let cldUploadStream = cloudinary.uploader.upload_stream(
+        { folder: `theatres/${theatre}`, overwrite: true, public_id: "default" },
+        (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        }
+      );
+      streamifier.createReadStream(req.file.buffer).pipe(cldUploadStream);
+    });
+
+    res.json({ message: "Upload successful", url: result.secure_url });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Upload failed" });
+  }
+});
+
+// ✅ Export the app for Vercel serverless
+module.exports = app;
