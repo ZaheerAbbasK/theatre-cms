@@ -338,13 +338,17 @@
     let refreshToken = '';
     const SERVER_URL = window.location.origin;
     const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
+    let refreshInterval = null; // Store the interval ID
+    let isRefreshing = false; // Prevent concurrent refreshes
+    let refreshRetryCount = 0;
+    const MAX_RETRIES = 3;
+    const BASE_RETRY_DELAY = 5000; // 5 seconds base delay
 
     // Load tokens from sessionStorage on page load
     function loadTokens() {
       const storedRefreshToken = sessionStorage.getItem('refreshToken');
       if (storedRefreshToken) {
         refreshToken = storedRefreshToken;
-        // Attempt to refresh access token on page load
         refreshAccessToken();
       } else {
         document.getElementById('authSection').style.display = 'block';
@@ -352,8 +356,9 @@
       }
     }
 
-    // Refresh access token
-    async function refreshAccessToken() {
+    // Refresh access token with retry logic
+    async function refreshAccessToken(retry = false) {
+      if (isRefreshing && !retry) return; // Prevent concurrent refreshes
       if (!refreshToken) {
         showModal('error', 'Session Expired', 'Please login again.');
         sessionStorage.removeItem('refreshToken');
@@ -362,6 +367,7 @@
         return;
       }
 
+      isRefreshing = true;
       try {
         const response = await fetch(`${SERVER_URL}/api/refresh-token`, {
           method: 'POST',
@@ -371,25 +377,48 @@
         const data = await response.json();
         if (data.success) {
           accessToken = data.accessToken;
+          refreshRetryCount = 0; // Reset retry count on success
           document.getElementById('authSection').style.display = 'none';
           document.getElementById('bookingsSection').style.display = 'block';
           await loadPendingBookings();
+          setupRefreshInterval(); // Reset interval on successful refresh
         } else {
           throw new Error(data.error || 'Failed to refresh token');
         }
       } catch (error) {
         console.error('Token Refresh Error:', error);
-        showModal('error', 'Session Expired', 'Please login again.');
-        sessionStorage.removeItem('refreshToken');
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('bookingsSection').style.display = 'none';
+        if (refreshRetryCount < MAX_RETRIES) {
+          refreshRetryCount++;
+          const delay = BASE_RETRY_DELAY * Math.pow(2, refreshRetryCount); // Exponential backoff
+          console.log(`Retrying token refresh in ${delay / 1000} seconds...`);
+          setTimeout(() => refreshAccessToken(true), delay);
+        } else {
+          showModal('error', 'Session Expired', 'Please login again.');
+          sessionStorage.removeItem('refreshToken');
+          document.getElementById('authSection').style.display = 'block';
+          document.getElementById('bookingsSection').style.display = 'none';
+          clearRefreshInterval();
+        }
+      } finally {
+        isRefreshing = false;
       }
     }
 
-    // Auto-refresh access token every 25 minutes
-    setInterval(refreshAccessToken, 25 * 60 * 1000);
+    // Setup refresh interval
+    function setupRefreshInterval() {
+      clearRefreshInterval(); // Clear any existing interval
+      refreshInterval = setInterval(() => refreshAccessToken(false), 25 * 60 * 1000); // Refresh every 25 minutes
+    }
 
-    // --- Modal Utility Functions ---
+    // Clear refresh interval
+    function clearRefreshInterval() {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+      }
+    }
+
+    // Modal Utility Functions
     const customModal = document.getElementById('customModal');
     const modalTitle = document.getElementById('modalTitle');
     const modalMessage = document.getElementById('modalMessage');
@@ -400,47 +429,39 @@
       return new Promise(resolve => {
         modalTitle.textContent = title;
         modalMessage.textContent = message;
-        modalIcon.className = 'modal-icon'; // Reset class
-        modalActions.innerHTML = ''; // Clear buttons
+        modalIcon.className = 'modal-icon';
+        modalActions.innerHTML = '';
 
         if (type === 'confirm') {
           modalIcon.classList.add('modal-confirm-icon');
           modalIcon.innerHTML = '⚠️';
-
           const btnPrimary = document.createElement('button');
           btnPrimary.className = 'btn-primary';
           btnPrimary.textContent = 'Yes, Proceed';
           btnPrimary.onclick = () => { hideModal(); onConfirm && onConfirm(); resolve(true); };
-
           const btnSecondary = document.createElement('button');
           btnSecondary.className = 'btn-secondary';
           btnSecondary.textContent = 'Cancel';
           btnSecondary.onclick = () => { hideModal(); resolve(false); };
-
           modalActions.appendChild(btnSecondary);
           modalActions.appendChild(btnPrimary);
-
         } else if (type === 'success') {
           modalIcon.classList.add('modal-success-icon');
           modalIcon.innerHTML = '✅';
-
           const btnPrimary = document.createElement('button');
           btnPrimary.className = 'btn-primary';
           btnPrimary.textContent = 'OK';
           btnPrimary.onclick = () => { hideModal(); resolve(true); };
           modalActions.appendChild(btnPrimary);
-
         } else if (type === 'error') {
           modalIcon.classList.add('modal-error-icon');
           modalIcon.innerHTML = '❌';
-
           const btnPrimary = document.createElement('button');
           btnPrimary.className = 'btn-primary';
           btnPrimary.textContent = 'Close';
           btnPrimary.onclick = () => { hideModal(); resolve(false); };
           modalActions.appendChild(btnPrimary);
         }
-
         customModal.classList.add('active');
       });
     }
@@ -451,7 +472,6 @@
 
     async function login() {
       const pin = document.getElementById('pinInput').value;
-
       if (!pin) {
         await showModal('error', 'Login Error', 'Please enter the Admin PIN.');
         return;
@@ -461,30 +481,22 @@
       try {
         const authResponse = await fetch(`${SERVER_URL}/api/auth`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pin })
         });
-
         const authData = await authResponse.json();
-
         if (!authData.success) {
           throw new Error(authData.message || 'Invalid PIN');
         }
 
-        // Store tokens
         accessToken = authData.accessToken;
         refreshToken = authData.refreshToken;
         sessionStorage.setItem('refreshToken', refreshToken);
+        setupRefreshInterval(); // Start interval after successful login
 
-        // Load bookings
-        await loadPendingBookings();
-
-        // Update UI
         document.getElementById('authSection').style.display = 'none';
         document.getElementById('bookingsSection').style.display = 'block';
-
+        await loadPendingBookings();
       } catch (error) {
         await showModal('error', 'Login Failed', `Login failed: ${error.message}`);
         console.error('Login Error:', error);
@@ -501,20 +513,15 @@
       showLoading('Fetching bookings...');
       try {
         const response = await fetch(`${WORKER_URL}/api/get-pending-bookings`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
+          headers: { 'Authorization': `Bearer ${accessToken}` }
         });
-
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
-            // Try refreshing token
-            await refreshAccessToken();
+            await refreshAccessToken(true);
             return;
           }
           throw new Error('Failed to fetch bookings');
         }
-
         const data = await response.json();
         renderBookings(data.bookings);
       } catch (error) {
@@ -527,63 +534,55 @@
 
     function renderBookings(bookings) {
       const grid = document.getElementById('bookingsGrid');
-
       if (!bookings || !bookings.length) {
         grid.innerHTML = `
-          <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #6c757d; font-size: 18px;">
-            <p>🎉 No pending bookings found! Everything looks clear.</p>
-          </div>
-        `;
+      <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #6c757d; font-size: 18px;">
+        <p>🎉 No pending bookings found! Everything looks clear.</p>
+      </div>
+    `;
         return;
       }
 
       grid.innerHTML = bookings.map(booking => `
-        <div class="booking-card">
-          <div class="booking-header">
-            <span class="booking-id">#${booking.booking_id}</span>
-            <span class="pending-badge">Pending</span>
-          </div>
-          
-          <div class="booking-detail">
-            <span class="label">Customer:</span>
-            <span class="value">${booking.customer_name}</span>
-          </div>
-          
-          <div class="booking-detail">
-            <span class="label">Phone:</span>
-            <span class="value">${booking.customer_phone}</span>
-          </div>
-          
-          <div class="booking-detail">
-            <span class="label">Email:</span>
-            <span class="value">${booking.customer_email || 'N/A'}</span>
-          </div>
-          
-          <div class="booking-detail">
-            <span class="label">Date/Time:</span>
-            <span class="value">${booking.event_date} @ ${booking.time_slot}</span>
-          </div>
-          
-          <div class="booking-detail">
-            <span class="label">Venue:</span>
-            <span class="value">${booking.venue_name}</span>
-          </div>
-          
-          <div class="booking-detail">
-            <span class="label">Total:</span>
-            <span class="value">₹${booking.grand_total}</span>
-          </div>
-
-          <div class="actions">
-            <button class="confirm-btn" onclick="confirmBooking('${booking.booking_id}')">
-              ✅ Confirm
-            </button>
-            <button class="decline-btn" onclick="declineBooking('${booking.booking_id}')">
-              ❌ Decline
-            </button>
-          </div>
-        </div>
-      `).join('');
+    <div class="booking-card">
+      <div class="booking-header">
+        <span class="booking-id">#${booking.booking_id}</span>
+        <span class="pending-badge">Pending</span>
+      </div>
+      <div class="booking-detail">
+        <span class="label">Customer:</span>
+        <span class="value">${booking.customer_name}</span>
+      </div>
+      <div class="booking-detail">
+        <span class="label">Phone:</span>
+        <span class="value">${booking.customer_phone}</span>
+      </div>
+      <div class="booking-detail">
+        <span class="label">Email:</span>
+        <span class="value">${booking.customer_email || 'N/A'}</span>
+      </div>
+      <div class="booking-detail">
+        <span class="label">Date/Time:</span>
+        <span class="value">${booking.event_date} @ ${booking.time_slot}</span>
+      </div>
+      <div class="booking-detail">
+        <span class="label">Venue:</span>
+        <span class="value">${booking.venue_name}</span>
+      </div>
+      <div class="booking-detail">
+        <span class="label">Total:</span>
+        <span class="value">₹${booking.grand_total}</span>
+      </div>
+      <div class="actions">
+        <button class="confirm-btn" onclick="confirmBooking('${booking.booking_id}')">
+          ✅ Confirm
+        </button>
+        <button class="decline-btn" onclick="declineBooking('${booking.booking_id}')">
+          ❌ Decline
+        </button>
+      </div>
+    </div>
+  `).join('');
     }
 
     async function confirmBooking(bookingId) {
@@ -600,10 +599,9 @@
               },
               body: JSON.stringify({ booking_id: bookingId })
             });
-
             if (!response.ok) {
               if (response.status === 401 || response.status === 403) {
-                await refreshAccessToken();
+                await refreshAccessToken(true);
                 return;
               }
               throw new Error('Failed to confirm booking');
@@ -634,15 +632,13 @@
               },
               body: JSON.stringify({ booking_id: bookingId })
             });
-
             if (!response.ok) {
               if (response.status === 401 || response.status === 403) {
-                await refreshAccessToken();
+                await refreshAccessToken(true);
                 return;
               }
               throw new Error('Failed to decline booking');
             }
-
             await showModal('success', 'Declined', `Booking #${bookingId} status updated to DECLINED successfully!`);
             await loadPendingBookings();
           } catch (error) {
@@ -671,7 +667,13 @@
     });
 
     // Initialize on page load
-    loadTokens();
+    window.addEventListener('load', () => {
+      clearRefreshInterval(); // Ensure no stale intervals
+      loadTokens();
+    });
+
+    // Cleanup on page unload
+    window.addEventListener('unload', clearRefreshInterval);
   </script>
 </body>
 

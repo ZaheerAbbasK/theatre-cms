@@ -158,6 +158,7 @@ app.post("/api/auth", async (req, res) => {
 });
 
 // Refresh token endpoint
+// Refresh token endpoint
 app.post("/api/refresh-token", (req, res) => {
   const { refreshToken } = req.body;
   if (!refreshToken || !refreshTokens.includes(refreshToken)) {
@@ -165,9 +166,13 @@ app.post("/api/refresh-token", (req, res) => {
   }
 
   jwt.verify(refreshToken, REFRESH_TOKEN_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ success: false, error: 'Invalid refresh token' });
+    if (err) {
+      // Remove invalid refresh token
+      refreshTokens = refreshTokens.filter(token => token !== refreshToken);
+      return res.status(403).json({ success: false, error: 'Invalid refresh token' });
+    }
     
-    const accessToken = jwt.sign({ role: 'admin' }, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
+    const accessToken = jwt.sign({ role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
     res.json({ success: true, accessToken });
   });
 });
