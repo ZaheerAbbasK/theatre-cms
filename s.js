@@ -110,7 +110,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Auth route
 app.post("/api/auth", (req, res) => {
   const { pin } = req.body;
   

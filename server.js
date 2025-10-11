@@ -3,6 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
@@ -130,17 +131,21 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Auth route with PIN and JWT tokens
 app.post("/api/auth", (req, res) => {
   const { pin } = req.body;
   
-  if (pin !== process.env.ADMINPIN) {
-    return res.json({
+  if (pin === process.env.ADMINPIN) {
+    res.json({
+      success: true,
+      adminSecret: process.env.DB_ADMIN_SECRET
+    });
+  } else {
+    res.json({
       success: false,
       message: "Invalid PIN"
     });
   }
-
+function jwt(){
   // Generate JWT tokens
   const user = { role: 'admin' };
   const accessToken = jwt.sign(user, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
@@ -176,6 +181,8 @@ app.post("/api/refresh-token", (req, res) => {
 app.get("/booking-admin", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "booking-admin.html"));
 });
+
+const upload = multer();
 
 // ✅ API route: Get latest theatre images
 app.get("/api/images", async (req, res) => {
