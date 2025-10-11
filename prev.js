@@ -3,6 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
@@ -35,86 +36,85 @@ function authenticateToken(req, res, next) {
 // --------------------------------------------------------------------
 // ✅ SECURE ROUTE: Cloudflare Worker Proxy
 // --------------------------------------------------------------------
-app.post('/api/proxy-worker', async (req, res) => {
-    const { endpoint, method, body, secretLevel } = req.body;
-    
-    let appSecret;
-    switch (secretLevel) {
-        case 'read':
-            appSecret = process.env.DB_READ_SECRET;
-            break;
-        case 'write':
-            appSecret = process.env.DB_WRITE_SECRET;
-            break;
-        case 'admin':
-            appSecret = process.env.DB_ADMIN_SECRET;
-            break;
-        default:
-            return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
-    }
+app.post('/api/proxy-worker', authenticateToken, async (req, res) => {
+  const { endpoint, method, body, secretLevel } = req.body;
 
-    if (!appSecret) {
-        console.error(`ERROR: Secret for level '${secretLevel}' not found.`);
-        return res.status(500).json({ success: false, error: 'Server configuration error: Missing required secret.' });
+  let appSecret;
+  switch (secretLevel) {
+    case 'read':
+      appSecret = process.env.DB_READ_SECRET;
+      break;
+    case 'write':
+      appSecret = process.env.DB_WRITE_SECRET;
+      break;
+    case 'admin':
+      appSecret = process.env.DB_ADMIN_SECRET;
+      break;
+    default:
+      return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
+  }
+
+  if (!appSecret) {
+    console.error(`ERROR: Secret for level '${secretLevel}' not found.`);
+    return res.status(500).json({ success: false, error: 'Server configuration error: Missing required secret.' });
+  }
+
+  const fullWorkerUrl = `${WORKER_URL}${endpoint}`;
+
+  const fetchOptions = {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-App-Secret': appSecret
     }
-    
-    const fullWorkerUrl = `${WORKER_URL}${endpoint}`;
-    
-    const fetchOptions = {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json',
-            'X-App-Secret': appSecret
-        }
-    };
-    
-    if (method !== 'GET' && body) {
-        fetchOptions.body = JSON.stringify(body);
-    }
-    
-    try {
-        const workerResponse = await fetch(fullWorkerUrl, fetchOptions);
-        const workerData = await workerResponse.json();
-        res.status(workerResponse.status).json(workerData);
-    } catch (error) {
-        console.error('Worker Proxy Error:', error);
-        res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
-    }
+  };
+
+  if (method !== 'GET' && body) {
+    fetchOptions.body = JSON.stringify(body);
+  }
+
+  try {
+    const workerResponse = await fetch(fullWorkerUrl, fetchOptions);
+    const workerData = await workerResponse.json();
+    res.status(workerResponse.status).json(workerData);
+  } catch (error) {
+    console.error('Worker Proxy Error:', error);
+    res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
+  }
 });
 
-// Add this function to securely URL-encode parameters
+// Function to securely URL-encode parameters
 function urlEncode(str) {
-    return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
 // ✅ NEW ROUTE: Fetch UPI recipient details (VPA and name)
 app.get('/api/upi-details', (req, res) => {
-    res.json({
-        vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
-        name: 'Mr RAJU Y BASAPUR'
-    });
+  res.json({
+    vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
+    name: 'Mr RAJU Y BASAPUR'
+  });
 });
 
 // ✅ NEW ROUTE FOR UPI REDIRECT
 app.get('/api/pay-upi', (req, res) => {
-    const bookingId = req.query.bookingId || 'NO_BOOKING_ID';
-    const amount = parseFloat(req.query.amount).toFixed(2) || '0.00';
-    const uniqueOrderId = `BOOKING-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const bookingId = req.query.bookingId || 'NO_BOOKING_ID';
+  const amount = parseFloat(req.query.amount).toFixed(2) || '0.00';
+  const uniqueOrderId = `BOOKING-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    const payeeVPA = 'BHARATPE2S0K0E0M3O64927@unitype';
-    const payeeName = 'Mr RAJU Y BASAPUR';
-    const transactionNote = `Payment for ${bookingId}`;
+  const payeeVPA = 'BHARATPE2S0K0E0M3O64927@unitype';
+  const payeeName = 'Mr RAJU Y BASAPUR';
+  const transactionNote = `Payment for ${bookingId}`;
 
-    const upiLink = `upi://pay?` +
-        `pa=${urlEncode(payeeVPA)}` +
-        `&pn=${urlEncode(payeeName)}` +
-        `&am=${amount}` +
-        `&cu=INR` +
-        `&tn=${urlEncode(transactionNote)}` +
-        `&tr=${urlEncode(uniqueOrderId)}`;
+  const upiLink = `upi://pay?` +
+    `pa=${urlEncode(payeeVPA)}` +
+    `&pn=${urlEncode(payeeName)}` +
+    `&am=${amount}` +
+    `&cu=INR` +
+    `&tn=${urlEncode(transactionNote)}` +
+    `&tr=${urlEncode(uniqueOrderId)}`;
 
-    console.log(`Redirecting to: ${upiLink}`);
-    res.redirect(302, upiLink);
+  res.redirect(302, upiLink);
 });
 
 // --------------------------------------------------------------------
@@ -130,17 +130,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Auth route
-app.post("/api/auth", (req, res) => {
+// Auth route to issue JWT tokens
+app.post("/api/auth", async (req, res) => {
   const { pin } = req.body;
-  
-  if (pin === process.env.ADMINPIN) {
-    res.json({
-      success: true,
-      adminSecret: process.env.DB_ADMIN_SECRET
-    });
-  } else {
-    res.json({
+
+  if (pin !== process.env.ADMINPIN) {
+    return res.status(401).json({
       success: false,
       message: "Invalid PIN"
     });
@@ -184,7 +179,7 @@ app.get("/booking-admin", (req, res) => {
 const upload = multer();
 
 // ✅ API route: Get latest theatre images
-app.get("/api/images", async (req, res) => {
+app.get("/api/images", authenticateToken, async (req, res) => {
   try {
     const folders = ["birthday", "couple", "private"];
     const urls = {};
@@ -209,15 +204,10 @@ app.get("/api/images", async (req, res) => {
   }
 });
 
-// ✅ API route: Upload theatre image (with PIN)
-app.post("/upload/:theatre", upload.single("image"), async (req, res) => {
+// ✅ API route: Upload theatre image (with JWT)
+app.post("/upload/:theatre", authenticateToken, upload.single("image"), async (req, res) => {
   try {
     const theatre = req.params.theatre;
-    const pin = req.body.pin;
-
-    if (pin !== process.env.ADMINPIN) {
-      return res.status(403).json({ message: "Invalid PIN" });
-    }
 
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
