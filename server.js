@@ -117,7 +117,7 @@ app.get('/api/pay-upi', (req, res) => {
     console.log(`Redirecting to: ${upiLink}`);
     res.redirect(302, upiLink);
 });
-
+const upload = multer(); // for parsing multipart/form-data
 // --------------------------------------------------------------------
 // fallback: open admin.html when hitting /admin
 app.get("/admin", (req, res) => {
