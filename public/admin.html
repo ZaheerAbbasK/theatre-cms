@@ -1,588 +1,247 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Beano's Hub Admin Panel</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>
-    * {
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      body {
-        font-family: 'Inter', sans-serif;
-        background: linear-gradient(135deg, #fff7f0, #ffe6d4);
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        /* Center vertically */
-        padding: 20px;
-      }
-
-      h1 {
-        margin: 40px 0 20px;
-        font-size: 2.2rem;
-        color: #5a3e36;
-        text-align: center;
-      }
-
-      .card-container {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 25px;
-        width: 100%;
-        max-width: 1000px;
-        margin: 0 auto;
-        /* Ensure centering */
-      }
-
-      .card {
-        background: #fff1eb;
-        border-radius: 20px;
-        padding: 25px;
-        width: 300px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-      }
-
-      .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.12);
-      }
-
-      .card h2 {
-        margin-bottom: 15px;
-        font-size: 1.5rem;
-        color: #4b2e25;
-      }
-
-      .image-box {
-        width: 100%;
-        height: 180px;
-        background: #f5d1c1;
-        border-radius: 12px;
-        margin-bottom: 15px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: #7a4a3c;
-        font-weight: 600;
-        font-size: 1rem;
-      }
-
-      input[type=file],
-      input[type=password] {
-        width: 100%;
-        padding: 10px;
-        border-radius: 10px;
-        border: none;
-        margin-bottom: 12px;
-        font-size: 14px;
-        outline: none;
-      }
-
-      input[type=file] {
-        cursor: pointer;
-      }
-
-      input[type=password] {
-        border: 1px solid #ced4da;
-      }
-
-      button {
-        width: 100%;
-        padding: 12px;
-        border-radius: 12px;
-        border: none;
-        font-weight: 600;
-        font-size: 15px;
-        color: #fff;
-        background: #ff6b35;
-        cursor: pointer;
-        transition: background 0.3s ease;
-      }
-
-      button:hover {
-        background: #e55a2b;
-      }
-
-      /* Auth Section */
-      .auth-section {
-        background: #ffffff;
-        padding: 40px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        width: 100%;
-        max-width: 450px;
-        margin: 20px auto;
-        /* Reduced margin for better vertical centering */
-      }
-
-      .auth-section input:focus {
-        border-color: #ff6b35;
-        outline: none;
-        box-shadow: 0 0 0 0.2rem rgba(255, 107, 53, 0.25);
-      }
-
-      .auth-section button {
-        background: #ff6b35;
-      }
-
-      .auth-section button:hover {
-        background: #e55a2b;
-      }
-
-      /* Loading overlay */
-      #overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(4px);
-        display: none;
-        justify-content: center;
-        align-items: center;
-        z-index: 999;
-        color: #fff;
-        font-size: 1.5rem;
-        font-weight: 600;
-      }
-
-      /* Modal Styles */
-      .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.6);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 2000;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s, visibility 0.3s;
-      }
-
-      .modal-overlay.active {
-        opacity: 1;
-        visibility: visible;
-      }
-
-      .modal-content {
-        background: white;
-        padding: 30px;
-        border-radius: 12px;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-        max-width: 400px;
-        width: 90%;
-        text-align: center;
-        transform: scale(0.9);
-        transition: transform 0.3s ease-out;
-      }
-
-      .modal-overlay.active .modal-content {
-        transform: scale(1);
-      }
-
-      .modal-icon {
-        font-size: 40px;
-        margin-bottom: 15px;
-      }
-
-      .modal-confirm-icon {
-        color: #ffc107;
-      }
-
-      .modal-success-icon {
-        color: #28a745;
-      }
-
-      .modal-error-icon {
-        color: #dc3545;
-      }
-
-      .modal-message {
-        margin-bottom: 25px;
-        font-size: 16px;
-        color: #495057;
-      }
-
-      .modal-title {
-        font-size: 24px;
-        font-weight: 700;
-        margin-bottom: 10px;
-      }
-
-      .modal-actions button {
-        margin: 0 10px;
-        padding: 10px 20px;
-        font-weight: 600;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-      }
-
-      .modal-actions .btn-primary {
-        background: #ff6b35;
-        color: white;
-      }
-
-      .modal-actions .btn-secondary {
-        background: #f8f9fa;
-        color: #6c757d;
-        border: 1px solid #ced4da;
-      }
-
-      /* Responsive adjustments */
-      @media (max-width: 600px) {
-        .card {
-          width: 90%;
-          padding: 20px;
-        }
-
-        .auth-section {
-          padding: 20px;
-          margin: 10px auto;
-        }
-
-        h1 {
-          font-size: 1.8rem;
-        }
-      }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beano's Hub Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#fff7f0,#ffe6d4);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding-bottom:40px;}
+h1{margin:40px 0 20px;font-size:2.2rem;color:#5a3e36;text-align:center;}
+.card-container{display:flex;flex-wrap:wrap;justify-content:center;gap:25px;width:95%;max-width:1000px;}
+.card{background:#fff1eb;border-radius:20px;padding:25px;width:300px;box-shadow:0 10px 25px rgba(0,0,0,0.08);display:flex;flex-direction:column;align-items:center;transition:transform 0.3s ease,box-shadow 0.3s ease;}
+.card:hover{transform:translateY(-5px);box-shadow:0 15px 35px rgba(0,0,0,0.12);}
+.card h2{margin-bottom:15px;font-size:1.5rem;color:#4b2e25;}
+.image-box{width:100%;height:180px;background:#f5d1c1;border-radius:12px;margin-bottom:15px;display:flex;justify-content:center;align-items:center;color:#7a4a3c;font-weight:600;font-size:1rem;}
+input[type=file],input[type=password]{width:100%;padding:10px;border-radius:10px;border:none;margin-bottom:12px;font-size:14px;outline:none;}
+input[type=file]{cursor:pointer;}
+button{width:100%;padding:12px;border-radius:12px;border:none;font-weight:600;font-size:15px;color:#fff;background:#ff6b35;cursor:pointer;transition:background 0.3s ease;}
+button:hover{background:#e55a2b;}
+@media(max-width:600px){.card{width:90%;padding:20px;}}
+/* Loading overlay */
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:none;justify-content:center;align-items:center;z-index:999;color:#fff;font-size:1.5rem;font-weight:600;}
+/* Auth section */
+.auth-section{background:#ffffff;padding:40px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);text-align:center;max-width:450px;margin:60px auto;display:none;}
+input[type=password]{display:block;}
+.login-btn{background:#007bff;color:white;width:100%;margin-top:10px;}
+.login-btn:hover{background:#0056b3;}
+</style>
 </head>
-
 <body>
-  <div id="authSection" class="auth-section">
-    <h2 style="margin-bottom:20px; color:#343a40;">Admin Login</h2>
-    <input type="password" id="pinInput" placeholder="Enter Admin PIN">
-    <button class="btn-primary" onclick="login()">Login</button>
-  </div>
+<h1>Beano's Hub Admin Panel</h1>
 
-  <div id="mainSection" style="display:none">
-    <h1>Beano's Hub Admin Panel</h1>
-    <div class="card-container">
-      <div class="card">
-        <h2>Birthday Theatre</h2>
-        <div class="image-box" id="birthdayImageBox">Loading...</div>
-        <input type="file" id="birthdayFile">
-        <button id="birthdayBtn">Upload</button>
-      </div>
-      <div class="card">
-        <h2>Couple Theatre</h2>
-        <div class="image-box" id="coupleImageBox">Loading...</div>
-        <input type="file" id="coupleFile">
-        <button id="coupleBtn">Upload</button>
-      </div>
-      <div class="card">
-        <h2>Private Theatre</h2>
-        <div class="image-box" id="privateImageBox">Loading...</div>
-        <input type="file" id="privateFile">
-        <button id="privateBtn">Upload</button>
-      </div>
+<div id="authSection" class="auth-section">
+  <h2 style="margin-bottom:20px;color:#343a40;">Admin Login</h2>
+  <input type="password" id="pinInput" placeholder="Enter Admin PIN">
+  <button class="login-btn" onclick="login()">Login</button>
+</div>
+
+<div id="mainContent" style="display:none;">
+  <div class="card-container">
+    <div class="card">
+      <h2>Birthday Theatre</h2>
+      <div class="image-box" id="birthdayImageBox">Loading...</div>
+      <input type="file" id="birthdayFile">
+      <button id="birthdayBtn">Upload</button>
+    </div>
+    <div class="card">
+      <h2>Couple Theatre</h2>
+      <div class="image-box" id="coupleImageBox">Loading...</div>
+      <input type="file" id="coupleFile">
+      <button id="coupleBtn">Upload</button>
+    </div>
+    <div class="card">
+      <h2>Private Theatre</h2>
+      <div class="image-box" id="privateImageBox">Loading...</div>
+      <input type="file" id="privateFile">
+      <button id="privateBtn">Upload</button>
     </div>
   </div>
+</div>
 
-  <!-- Loading overlay -->
-  <div id="overlay">Processing...</div>
+<!-- Loading overlay -->
+<div id="overlay">Processing...</div>
 
-  <!-- Modal -->
-  <div id="customModal" class="modal-overlay">
-    <div class="modal-content">
-      <div id="modalIcon" class="modal-icon"></div>
-      <div id="modalTitle" class="modal-title"></div>
-      <p id="modalMessage" class="modal-message"></p>
-      <div id="modalActions" class="modal-actions"></div>
-    </div>
-  </div>
+<script>
+const overlay = document.getElementById("overlay");
+const SERVER_URL = window.location.origin;
 
-  <script>
-    let accessToken = '';
-    let refreshToken = '';
-    const SERVER_URL = window.location.origin;
-    const overlay = document.getElementById("overlay");
-    let refreshInterval = null; // Store the interval ID
-    let isRefreshing = false; // Prevent concurrent refreshes
-    let refreshRetryCount = 0;
-    const MAX_RETRIES = 3;
-    const BASE_RETRY_DELAY = 5000; // 5 seconds base delay
+// Token handling
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) return false;
 
-    // Load tokens from sessionStorage on page load
-    function loadTokens() {
-      const storedRefreshToken = sessionStorage.getItem('refreshToken');
-      if (storedRefreshToken) {
-        refreshToken = storedRefreshToken;
-        refreshAccessToken();
-      } else {
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('mainSection').style.display = 'none';
-      }
-    }
-
-    // Refresh access token with retry logic
-    async function refreshAccessToken(retry = false) {
-      if (isRefreshing && !retry) return; // Prevent concurrent refreshes
-      if (!refreshToken) {
-        showModal('error', 'Session Expired', 'Please login again.');
-        sessionStorage.removeItem('refreshToken');
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('mainSection').style.display = 'none';
-        return;
-      }
-
-      isRefreshing = true;
-      try {
-        const response = await fetch(`${SERVER_URL}/api/refresh-token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-        const data = await response.json();
-        if (data.success) {
-          accessToken = data.accessToken;
-          refreshRetryCount = 0; // Reset retry count on success
-          document.getElementById('authSection').style.display = 'none';
-          document.getElementById('mainSection').style.display = 'block';
-          loadImages();
-          setupRefreshInterval(); // Reset interval on successful refresh
-        } else {
-          throw new Error(data.error || 'Failed to refresh token');
-        }
-      } catch (error) {
-        console.error('Token Refresh Error:', error);
-        if (refreshRetryCount < MAX_RETRIES) {
-          refreshRetryCount++;
-          const delay = BASE_RETRY_DELAY * Math.pow(2, refreshRetryCount); // Exponential backoff
-          console.log(`Retrying token refresh in ${delay / 1000} seconds...`);
-          setTimeout(() => refreshAccessToken(true), delay);
-        } else {
-          showModal('error', 'Session Expired', 'Please login again.');
-          sessionStorage.removeItem('refreshToken');
-          document.getElementById('authSection').style.display = 'block';
-          document.getElementById('mainSection').style.display = 'none';
-          clearRefreshInterval();
-        }
-      } finally {
-        isRefreshing = false;
-      }
-    }
-
-    // Setup refresh interval
-    function setupRefreshInterval() {
-      clearRefreshInterval(); // Clear any existing interval
-      refreshInterval = setInterval(() => refreshAccessToken(false), 25 * 60 * 1000); // Refresh every 25 minutes
-    }
-
-    // Clear refresh interval
-    function clearRefreshInterval() {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-        refreshInterval = null;
-      }
-    }
-
-    // Modal Utility Functions
-    const customModal = document.getElementById('customModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalMessage = document.getElementById('modalMessage');
-    const modalIcon = document.getElementById('modalIcon');
-    const modalActions = document.getElementById('modalActions');
-
-    function showModal(type, title, message, onConfirm = null) {
-      return new Promise(resolve => {
-        modalTitle.textContent = title;
-        modalMessage.textContent = message;
-        modalIcon.className = 'modal-icon';
-        modalActions.innerHTML = '';
-
-        if (type === 'confirm') {
-          modalIcon.classList.add('modal-confirm-icon');
-          modalIcon.innerHTML = '⚠️';
-          const btnPrimary = document.createElement('button');
-          btnPrimary.className = 'btn-primary';
-          btnPrimary.textContent = 'Yes, Proceed';
-          btnPrimary.onclick = () => { hideModal(); onConfirm && onConfirm(); resolve(true); };
-          const btnSecondary = document.createElement('button');
-          btnSecondary.className = 'btn-secondary';
-          btnSecondary.textContent = 'Cancel';
-          btnSecondary.onclick = () => { hideModal(); resolve(false); };
-          modalActions.appendChild(btnSecondary);
-          modalActions.appendChild(btnPrimary);
-        } else if (type === 'success') {
-          modalIcon.classList.add('modal-success-icon');
-          modalIcon.innerHTML = '✅';
-          const btnPrimary = document.createElement('button');
-          btnPrimary.className = 'btn-primary';
-          btnPrimary.textContent = 'OK';
-          btnPrimary.onclick = () => { hideModal(); resolve(true); };
-          modalActions.appendChild(btnPrimary);
-        } else if (type === 'error') {
-          modalIcon.classList.add('modal-error-icon');
-          modalIcon.innerHTML = '❌';
-          const btnPrimary = document.createElement('button');
-          btnPrimary.className = 'btn-primary';
-          btnPrimary.textContent = 'Close';
-          btnPrimary.onclick = () => { hideModal(); resolve(false); };
-          modalActions.appendChild(btnPrimary);
-        }
-        customModal.classList.add('active');
-      });
-    }
-
-    function hideModal() {
-      customModal.classList.remove('active');
-    }
-
-    // Login function
-    async function login() {
-      const pin = document.getElementById('pinInput').value;
-      if (!pin) {
-        await showModal('error', 'Login Error', 'Please enter the Admin PIN.');
-        return;
-      }
-
-      overlay.style.display = 'flex';
-      try {
-        const authResponse = await fetch(`${SERVER_URL}/api/auth`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin })
-        });
-        const authData = await authResponse.json();
-        if (!authData.success) {
-          throw new Error(authData.message || 'Invalid PIN');
-        }
-
-        accessToken = authData.accessToken;
-        refreshToken = authData.refreshToken;
-        sessionStorage.setItem('refreshToken', refreshToken);
-        setupRefreshInterval(); // Start interval after successful login
-
-        document.getElementById('authSection').style.display = 'none';
-        document.getElementById('mainSection').style.display = 'block';
-        loadImages();
-      } catch (error) {
-        await showModal('error', 'Login Failed', `Login failed: ${error.message}`);
-        console.error('Login Error:', error);
-      } finally {
-        overlay.style.display = 'none';
-      }
-    }
-
-    // Load latest images from API
-    async function loadImages() {
-      if (!accessToken) {
-        await showModal('error', 'Access Required', 'Please login first.');
-        return;
-      }
-      try {
-        const res = await fetch("/api/images", {
-          headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            await refreshAccessToken(true);
-            return;
-          }
-          throw new Error('Failed to fetch images');
-        }
-        const images = await res.json();
-        const ts = Date.now();
-        document.getElementById("birthdayImageBox").innerHTML = `<img src="${images.birthday}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
-        document.getElementById("coupleImageBox").innerHTML = `<img src="${images.couple}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
-        document.getElementById("privateImageBox").innerHTML = `<img src="${images.private}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
-      } catch (err) {
-        console.error(err);
-        await showModal('error', 'Fetch Error', 'Failed to load images. Please try again.');
-      }
-    }
-
-    // Upload handlers
-    const setups = [
-      { fileId: 'birthdayFile', boxId: 'birthdayImageBox', btnId: 'birthdayBtn', theatre: 'birthday' },
-      { fileId: 'coupleFile', boxId: 'coupleImageBox', btnId: 'coupleBtn', theatre: 'couple' },
-      { fileId: 'privateFile', boxId: 'privateImageBox', btnId: 'privateBtn', theatre: 'private' }
-    ];
-
-    setups.forEach(({ fileId, boxId, btnId, theatre }) => {
-      const fileInput = document.getElementById(fileId);
-      const btn = document.getElementById(btnId);
-      const imgBox = document.getElementById(boxId);
-
-      // Show preview
-      fileInput.addEventListener("change", e => {
-        const file = e.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            imgBox.innerHTML = `<img src="${reader.result}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
-          }
-          reader.readAsDataURL(file);
-        }
-      });
-
-      btn.addEventListener("click", async () => {
-        if (!accessToken) {
-          await showModal('error', 'Access Required', 'Please login first.');
-          return;
-        }
-        const file = fileInput.files[0];
-        if (!file) { await showModal('error', 'No File', 'Please select an image to upload.'); return; }
-
-        const formData = new FormData();
-        formData.append("image", file);
-
-        try {
-          overlay.style.display = "flex";
-          const res = await fetch(`/upload/${theatre}`, {
-            method: "POST",
-            headers: { 'Authorization': `Bearer ${accessToken}` },
-            body: formData
-          });
-          if (!res.ok) {
-            if (res.status === 401 || res.status === 403) {
-              await refreshAccessToken(true);
-              return;
-            }
-            throw new Error('Upload failed');
-          }
-          const data = await res.json();
-          overlay.style.display = "none";
-          await showModal('success', 'Success', data.message);
-          window.location.reload();
-        } catch (err) {
-          overlay.style.display = "none";
-          await showModal('error', 'Upload Failed', 'Failed to upload image. Please try again.');
-          window.location.reload();
-        }
-      });
+  try {
+    const res = await fetch(`${SERVER_URL}/api/refresh-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
     });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('accessToken', data.accessToken);
+      return true;
+    } else {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      return false;
+    }
+  } catch (err) {
+    console.error('Token refresh error:', err);
+    return false;
+  }
+}
 
-    // Initialize on page load
-    window.addEventListener('load', () => {
-      clearRefreshInterval(); // Ensure no stale intervals
-      loadTokens();
+async function makeAuthenticatedRequest(url, options = {}) {
+  let accessToken = localStorage.getItem('accessToken');
+  if (!accessToken) {
+    showAuthSection();
+    return null;
+  }
+
+  options.headers = {
+    ...options.headers,
+    'Authorization': `Bearer ${accessToken}`
+  };
+
+  let res = await fetch(url, options);
+  if (res.status === 403) {
+    // Try refreshing token
+    const refreshed = await refreshAccessToken();
+    if (!refreshed) {
+      showAuthSection();
+      return null;
+    }
+    accessToken = localStorage.getItem('accessToken');
+    options.headers['Authorization'] = `Bearer ${accessToken}`;
+    res = await fetch(url, options);
+  }
+  return res;
+}
+
+// Load latest images from API
+async function loadImages() {
+  overlay.style.display = "flex";
+  try {
+    const res = await makeAuthenticatedRequest(`${SERVER_URL}/api/images`);
+    if (!res) return;
+    const images = await res.json();
+    if (res.ok) {
+      const ts = Date.now();
+      document.getElementById("birthdayImageBox").innerHTML = `<img src="${images.birthday}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+      document.getElementById("coupleImageBox").innerHTML = `<img src="${images.couple}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+      document.getElementById("privateImageBox").innerHTML = `<img src="${images.private}?t=${ts}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+    } else {
+      alert('Failed to load images');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error loading images');
+  } finally {
+    overlay.style.display = "none";
+  }
+}
+
+// Upload handlers
+const setups = [
+  { fileId: 'birthdayFile', boxId: 'birthdayImageBox', btnId: 'birthdayBtn', theatre: 'birthday' },
+  { fileId: 'coupleFile', boxId: 'coupleImageBox', btnId: 'coupleBtn', theatre: 'couple' },
+  { fileId: 'privateFile', boxId: 'privateImageBox', btnId: 'privateBtn', theatre: 'private' }
+];
+
+setups.forEach(({ fileId, boxId, btnId, theatre }) => {
+  const fileInput = document.getElementById(fileId);
+  const btn = document.getElementById(btnId);
+  const imgBox = document.getElementById(boxId);
+
+  fileInput.addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        imgBox.innerHTML = `<img src="${reader.result}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  btn.addEventListener("click", async () => {
+    const file = fileInput.files[0];
+    if (!file) {
+      alert("Select an image");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    overlay.style.display = "flex";
+    try {
+      const res = await makeAuthenticatedRequest(`${SERVER_URL}/upload/${theatre}`, {
+        method: "POST",
+        body: formData
+      });
+      if (!res) return;
+      const data = await res.json();
+      overlay.style.display = "none";
+      alert(data.message);
+      if (res.ok) window.location.reload();
+    } catch (err) {
+      overlay.style.display = "none";
+      alert("Upload failed!");
+      window.location.reload();
+    }
+  });
+});
+
+// Auth handling
+function showAuthSection() {
+  document.getElementById('authSection').style.display = 'block';
+  document.getElementById('mainContent').style.display = 'none';
+}
+
+async function login() {
+  const pin = document.getElementById('pinInput').value;
+  if (!pin) {
+    alert('Please enter the Admin PIN');
+    return;
+  }
+
+  overlay.style.display = "flex";
+  try {
+    const res = await fetch(`${SERVER_URL}/api/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
     });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
+      localStorage.setItem('adminSecret', data.adminSecret); // Still needed for worker proxy
+      document.getElementById('authSection').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+      loadImages();
+    } else {
+      alert(data.message);
+    }
+  } catch (err) {
+    alert('Login failed');
+    console.error(err);
+  } finally {
+    overlay.style.display = "none";
+  }
+}
 
-    // Cleanup on page unload
-    window.addEventListener('unload', clearRefreshInterval);
-  </script>
+// Check for existing token on page load
+if (localStorage.getItem('accessToken')) {
+  document.getElementById('authSection').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+  loadImages();
+} else {
+  showAuthSection();
+}
+</script>
 </body>
-
 </html>

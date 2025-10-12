@@ -3,7 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
-const jwt = require("jsonwebtoken");
+const jwt = require("jsonwebtoken"); // Added for JWT
 require("dotenv").config();
 
 const app = express();
@@ -13,109 +13,114 @@ const path = require("path");
 
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 
-// JWT Secret Keys (ensure these are in .env)
-const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_TOKEN_SECRET || "your_access_token_secret";
-const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET || "your_refresh_token_secret";
+// JWT Secret Keys (ensure these are set in .env)
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "your_access_token_secret";
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "your_refresh_token_secret";
 
-// Store refresh tokens in memory (in production, use a database)
+// Store refresh tokens in memory (use a database like Redis in production)
 let refreshTokens = [];
 
-// Middleware to verify access token
-function authenticateToken(req, res, next) {
+// Middleware to verify JWT access token
+const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
-  if (!token) return res.status(401).json({ success: false, error: 'Access token required' });
+  const token = authHeader && authHeader.split(' ')[1]; // Expect "Bearer <token>"
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Access token required' });
+  }
 
   jwt.verify(token, ACCESS_TOKEN_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ success: false, error: 'Invalid or expired access token' });
-    req.user = user;
+    if (err) {
+      return res.status(403).json({ success: false, error: 'Invalid or expired access token' });
+    }
+    req.user = user; // Attach user data to request
     next();
   });
-}
+};
 
 // --------------------------------------------------------------------
 // ✅ SECURE ROUTE: Cloudflare Worker Proxy
 // --------------------------------------------------------------------
-app.post('/api/proxy-worker', authenticateToken, async (req, res) => {
-    const { endpoint, method, body, secretLevel } = req.body;
-    
-    let appSecret;
-    switch (secretLevel) {
-        case 'read':
-            appSecret = process.env.DB_READ_SECRET;
-            break;
-        case 'write':
-            appSecret = process.env.DB_WRITE_SECRET;
-            break;
-        case 'admin':
-            appSecret = process.env.DB_ADMIN_SECRET;
-            break;
-        default:
-            return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
-    }
+app.post('/api/proxy-worker', verifyToken, async (req, res) => {
+  const { endpoint, method, body, secretLevel } = req.body;
 
-    if (!appSecret) {
-        console.error(`ERROR: Secret for level '${secretLevel}' not found.`);
-        return res.status(500).json({ success: false, error: 'Server configuration error: Missing required secret.' });
+  let appSecret;
+  switch (secretLevel) {
+    case 'read':
+      appSecret = process.env.DB_READ_SECRET;
+      break;
+    case 'write':
+      appSecret = process.env.DB_WRITE_SECRET;
+      break;
+    case 'admin':
+      appSecret = process.env.DB_ADMIN_SECRET;
+      break;
+    default:
+      return res.status(400).json({ success: false, error: 'Invalid secret level requested.' });
+  }
+
+  if (!appSecret) {
+    console.error(`ERROR: Secret for level '${secretLevel}' not found.`);
+    return res.status(500).json({ success: false, error: 'Server configuration error: Missing required secret.' });
+  }
+
+  const fullWorkerUrl = `${WORKER_URL}${endpoint}`;
+
+  const fetchOptions = {
+    method: method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-App-Secret': appSecret
     }
-    
-    const fullWorkerUrl = `${WORKER_URL}${endpoint}`;
-    
-    const fetchOptions = {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json',
-            'X-App-Secret': appSecret
-        }
-    };
-    
-    if (method !== 'GET' && body) {
-        fetchOptions.body = JSON.stringify(body);
-    }
-    
-    try {
-        const workerResponse = await fetch(fullWorkerUrl, fetchOptions);
-        const workerData = await workerResponse.json();
-        res.status(workerResponse.status).json(workerData);
-    } catch (error) {
-        console.error('Worker Proxy Error:', error);
-        res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
-    }
+  };
+
+  if (method !== 'GET' && body) {
+    fetchOptions.body = JSON.stringify(body);
+  }
+
+  try {
+    const workerResponse = await fetch(fullWorkerUrl, fetchOptions);
+    const workerData = await workerResponse.json();
+    res.status(workerResponse.status).json(workerData);
+  } catch (error) {
+    console.error('Worker Proxy Error:', error);
+    res.status(500).json({ success: false, error: 'Internal Server Error forwarding request.' });
+  }
 });
 
 // Function to securely URL-encode parameters
 function urlEncode(str) {
-    return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
 // ✅ NEW ROUTE: Fetch UPI recipient details (VPA and name)
 app.get('/api/upi-details', (req, res) => {
-    res.json({
-        vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
-        name: 'Mr RAJU Y BASAPUR'
-    });
+  res.json({
+    vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
+    name: 'Mr RAJU Y BASAPUR'
+  });
 });
 
 // ✅ NEW ROUTE FOR UPI REDIRECT
 app.get('/api/pay-upi', (req, res) => {
-    const bookingId = req.query.bookingId || 'NO_BOOKING_ID';
-    const amount = parseFloat(req.query.amount).toFixed(2) || '0.00';
-    const uniqueOrderId = `BOOKING-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const bookingId = req.query.bookingId || 'NO_BOOKING_ID';
+  const amount = parseFloat(req.query.amount).toFixed(2) || '0.00';
+  const uniqueOrderId = `BOOKING-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    const payeeVPA = 'BHARATPE2S0K0E0M3O64927@unitype';
-    const payeeName = 'Mr RAJU Y BASAPUR';
-    const transactionNote = `Payment for ${bookingId}`;
+  const payeeVPA = 'BHARATPE2S0K0E0M3O64927@unitype';
+  const payeeName = 'Mr RAJU Y BASAPUR';
+  const transactionNote = `Payment for ${bookingId}`;
 
-    const upiLink = `upi://pay?` +
-        `pa=${urlEncode(payeeVPA)}` +
-        `&pn=${urlEncode(payeeName)}` +
-        `&am=${amount}` +
-        `&cu=INR` +
-        `&tn=${urlEncode(transactionNote)}` +
-        `&tr=${urlEncode(uniqueOrderId)}`;
+  const upiLink = `upi://pay?` +
+    `pa=${urlEncode(payeeVPA)}` +
+    `&pn=${urlEncode(payeeName)}` +
+    `&am=${amount}` +
+    `&cu=INR` +
+    `&tn=${urlEncode(transactionNote)}` +
+    `&tr=${urlEncode(uniqueOrderId)}`;
 
-    console.log(`Redirecting to: ${upiLink}`);
-    res.redirect(302, upiLink);
+  console.log(`Redirecting to: ${upiLink}`);
+  res.redirect(302, upiLink);
 });
 
 // --------------------------------------------------------------------
@@ -131,49 +136,47 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Auth route to issue JWT tokens
-app.post("/api/auth", async (req, res) => {
+// ✅ Auth route: Generate access and refresh tokens
+app.post("/api/auth", (req, res) => {
   const { pin } = req.body;
-  
-  if (pin !== process.env.ADMINPIN) {
-    return res.status(401).json({
+
+  if (pin === process.env.ADMINPIN) {
+    // Generate access token (30 minutes)
+    const accessToken = jwt.sign({ role: 'admin' }, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
+    // Generate refresh token (30 days)
+    const refreshToken = jwt.sign({ role: 'admin' }, REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
+    // Store refresh token
+    refreshTokens.push(refreshToken);
+
+    res.json({
+      success: true,
+      accessToken,
+      refreshToken,
+      adminSecret: process.env.DB_ADMIN_SECRET // Still needed for worker proxy
+    });
+  } else {
+    res.status(401).json({
       success: false,
       message: "Invalid PIN"
     });
   }
-
-  // Generate tokens
-  const user = { role: 'admin' };
-  const accessToken = jwt.sign(user, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
-  const refreshToken = jwt.sign(user, REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
-
-  // Store refresh token
-  refreshTokens.push(refreshToken);
-
-  res.json({
-    success: true,
-    accessToken,
-    refreshToken
-  });
 });
 
-// Refresh token endpoint
-// Refresh token endpoint
+// ✅ NEW ROUTE: Refresh access token
 app.post("/api/refresh-token", (req, res) => {
   const { refreshToken } = req.body;
+
   if (!refreshToken || !refreshTokens.includes(refreshToken)) {
     return res.status(403).json({ success: false, error: 'Invalid or expired refresh token' });
   }
 
   jwt.verify(refreshToken, REFRESH_TOKEN_SECRET, (err, user) => {
     if (err) {
-      // Remove invalid refresh token
-      refreshTokens = refreshTokens.filter(token => token !== refreshToken);
-      return res.status(403).json({ success: false, error: 'Invalid refresh token' });
+      return res.status(403).json({ success: false, error: 'Invalid or expired refresh token' });
     }
-    
-    const accessToken = jwt.sign({ role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
-    res.json({ success: true, accessToken });
+    // Generate new access token
+    const newAccessToken = jwt.sign({ role: 'admin' }, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
+    res.json({ success: true, accessToken: newAccessToken });
   });
 });
 
@@ -184,8 +187,8 @@ app.get("/booking-admin", (req, res) => {
 
 const upload = multer();
 
-// ✅ API route: Get latest theatre images
-app.get("/api/images", authenticateToken, async (req, res) => {
+// ✅ API route: Get latest theatre images (protected)
+app.get("/api/images", verifyToken, async (req, res) => {
   try {
     const folders = ["birthday", "couple", "private"];
     const urls = {};
@@ -210,8 +213,8 @@ app.get("/api/images", authenticateToken, async (req, res) => {
   }
 });
 
-// ✅ API route: Upload theatre image (with JWT)
-app.post("/upload/:theatre", authenticateToken, upload.single("image"), async (req, res) => {
+// ✅ API route: Upload theatre image (protected, no PIN needed)
+app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, res) => {
   try {
     const theatre = req.params.theatre;
 

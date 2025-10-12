@@ -1,308 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Booking Admin - Beano's Hub</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Global Reset and Typography */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      /* Darker, professional background */
-      background: #e9ecef;
-      min-height: 100vh;
-      padding: 20px;
-      color: #343a40;
-    }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
-    /* Header Styling */
-    .header {
-      background: #ffffff;
-      padding: 20px 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-      margin-bottom: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-left: 5px solid #007bff;
-      /* Accent color */
-    }
-
-    h1 {
-      color: #1a1a2e;
-      font-size: 26px;
-      font-weight: 700;
-    }
-
-    /* Auth Section */
-    .auth-section {
-      background: #ffffff;
-      padding: 40px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      text-align: center;
-      max-width: 450px;
-      margin: 60px auto;
-    }
-
-    /* Input Fields */
-    input {
-      width: 100%;
-      padding: 14px;
-      border: 1px solid #ced4da;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      font-size: 16px;
-      transition: border-color 0.3s;
-    }
-
-    input:focus {
-      border-color: #007bff;
-      outline: none;
-      box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-    }
-
-    /* Button Styling */
-    button {
-      padding: 12px 20px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: 0.3s ease-in-out;
-      font-size: 16px;
-    }
-
-    .login-btn {
-      background: #007bff;
-      color: white;
-      width: 100%;
-      margin-top: 10px;
-    }
-
-    .login-btn:hover {
-      background: #0056b3;
-      transform: translateY(-1px);
-    }
-
-    #refreshBtn {
-      background: #6c757d;
-      color: white;
-      padding: 10px 20px;
-      font-size: 16px;
-      border-radius: 8px;
-    }
-
-    #refreshBtn:hover {
-      background: #5a6268;
-    }
-
-    /* Bookings Grid */
-    .bookings-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 25px;
-      margin-top: 25px;
-    }
-
-    .booking-card {
-      background: #ffffff;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-      transition: transform 0.2s;
-    }
-
-    .booking-card:hover {
-      transform: translateY(-3px);
-    }
-
-    .booking-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      padding-bottom: 15px;
-      border-bottom: 1px dashed #dee2e6;
-    }
-
-    .booking-id {
-      font-weight: 700;
-      color: #007bff;
-      font-size: 18px;
-    }
-
-    .pending-badge {
-      background: #ffc107;
-      color: #343a40;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .booking-detail {
-      margin-bottom: 10px;
-      font-size: 15px;
-    }
-
-    .label {
-      color: #6c757d;
-      font-weight: 500;
-      margin-right: 8px;
-    }
-
-    .value {
-      color: #212529;
-      font-weight: 600;
-    }
-
-    /* Action Buttons */
-    .actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 15px;
-      margin-top: 25px;
-    }
-
-    .confirm-btn {
-      background: #28a745;
-      color: white;
-    }
-
-    .confirm-btn:hover {
-      background: #218838;
-    }
-
-    .decline-btn {
-      background: #dc3545;
-      color: white;
-    }
-
-    .decline-btn:hover {
-      background: #c82333;
-    }
-
-    /* Loading Overlay */
-    .loading {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(255, 255, 255, 0.9);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-size: 18px;
-      font-weight: 600;
-      color: #007bff;
-      display: none;
-      z-index: 1000;
-    }
-
-    /* --- Modal Styles --- */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 2000;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s, visibility 0.3s;
-    }
-
-    .modal-overlay.active {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .modal-content {
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-      max-width: 400px;
-      width: 90%;
-      text-align: center;
-      transform: scale(0.9);
-      transition: transform 0.3s ease-out;
-    }
-
-    .modal-overlay.active .modal-content {
-      transform: scale(1);
-    }
-
-    .modal-icon {
-      font-size: 40px;
-      margin-bottom: 15px;
-    }
-
-    .modal-confirm-icon {
-      color: #ffc107;
-    }
-
-    .modal-success-icon {
-      color: #28a745;
-    }
-
-    .modal-error-icon {
-      color: #dc3545;
-    }
-
-    .modal-message {
-      margin-bottom: 25px;
-      font-size: 16px;
-      color: #495057;
-    }
-
-    .modal-title {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-
-    .modal-actions button {
-      margin: 0 10px;
-      padding: 10px 20px;
-      font-weight: 600;
-    }
-
-    .modal-actions .btn-primary {
-      background: #007bff;
-      color: white;
-    }
-
-    .modal-actions .btn-secondary {
-      background: #f8f9fa;
-      color: #6c757d;
-      border: 1px solid #ced4da;
-    }
+    * {box-sizing:border-box;margin:0;padding:0;}
+    body {font-family:'Inter',sans-serif;background:#e9ecef;min-height:100vh;padding:20px;color:#343a40;}
+    .container {max-width:1200px;margin:0 auto;}
+    .header {background:#ffffff;padding:20px 30px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;border-left:5px solid #007bff;}
+    h1 {color:#1a1a2e;font-size:26px;font-weight:700;}
+    .auth-section {background:#ffffff;padding:40px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);text-align:center;max-width:450px;margin:60px auto;display:none;}
+    input {width:100%;padding:14px;border:1px solid #ced4da;border-radius:8px;margin-bottom:20px;font-size:16px;transition:border-color 0.3s;}
+    input:focus {border-color:#007bff;outline:none;box-shadow:0 0 0 0.2rem rgba(0,123,255,0.25);}
+    button {padding:12px 20px;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:0.3s ease-in-out;font-size:16px;}
+    .login-btn {background:#007bff;color:white;width:100%;margin-top:10px;}
+    .login-btn:hover {background:#0056b3;transform:translateY(-1px);}
+    #refreshBtn {background:#6c757d;color:white;padding:10px 20px;font-size:16px;border-radius:8px;}
+    #refreshBtn:hover {background:#5a6268;}
+    .bookings-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:25px;margin-top:25px;}
+    .booking-card {background:#ffffff;padding:25px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.05);transition:transform 0.2s;}
+    .booking-card:hover {transform:translateY(-3px);}
+    .booking-header {display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding-bottom:15px;border-bottom:1px dashed #dee2e6;}
+    .booking-id {font-weight:700;color:#007bff;font-size:18px;}
+    .pending-badge {background:#ffc107;color:#343a40;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;text-transform:uppercase;}
+    .booking-detail {margin-bottom:10px;font-size:15px;}
+    .label {color:#6c757d;font-weight:500;margin-right:8px;}
+    .value {color:#212529;font-weight:600;}
+    .actions {display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:25px;}
+    .confirm-btn {background:#28a745;color:white;}
+    .confirm-btn:hover {background:#218838;}
+    .decline-btn {background:#dc3545;color:white;}
+    .decline-btn:hover {background:#c82333;}
+    .loading {position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:18px;font-weight:600;color:#007bff;display:none;z-index:1000;}
+    .modal-overlay {position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;justify-content:center;align-items:center;z-index:2000;opacity:0;visibility:hidden;transition:opacity 0.3s,visibility 0.3s;}
+    .modal-overlay.active {opacity:1;visibility:visible;}
+    .modal-content {background:white;padding:30px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.2);max-width:400px;width:90%;text-align:center;transform:scale(0.9);transition:transform 0.3s ease-out;}
+    .modal-overlay.active .modal-content {transform:scale(1);}
+    .modal-icon {font-size:40px;margin-bottom:15px;}
+    .modal-confirm-icon {color:#ffc107;}
+    .modal-success-icon {color:#28a745;}
+    .modal-error-icon {color:#dc3545;}
+    .modal-message {margin-bottom:25px;font-size:16px;color:#495057;}
+    .modal-title {font-size:24px;font-weight:700;margin-bottom:10px;}
+    .modal-actions button {margin:0 10px;padding:10px 20px;font-weight:600;}
+    .modal-actions .btn-primary {background:#007bff;color:white;}
+    .modal-actions .btn-secondary {background:#f8f9fa;color:#6c757d;border:1px solid #ced4da;}
   </style>
 </head>
-
 <body>
   <div class="container">
     <div class="header">
@@ -311,14 +57,13 @@
     </div>
 
     <div id="authSection" class="auth-section">
-      <h2 style="margin-bottom:20px; color:#343a40;">Admin Login</h2>
+      <h2 style="margin-bottom:20px;color:#343a40;">Admin Login</h2>
       <input type="password" id="pinInput" placeholder="Enter Admin PIN">
       <button class="login-btn" onclick="login()">Login</button>
     </div>
 
     <div id="bookingsSection" style="display:none">
-      <div class="bookings-grid" id="bookingsGrid">
-      </div>
+      <div class="bookings-grid" id="bookingsGrid"></div>
     </div>
   </div>
 
@@ -329,96 +74,15 @@
       <div id="modalIcon" class="modal-icon"></div>
       <div id="modalTitle" class="modal-title"></div>
       <p id="modalMessage" class="modal-message"></p>
-      <div id="modalActions" class="modal-actions">
-      </div>
+      <div id="modalActions" class="modal-actions"></div>
     </div>
   </div>
+
   <script>
-    let accessToken = '';
-    let refreshToken = '';
     const SERVER_URL = window.location.origin;
-    const WORKER_ENDPOINT = '/api/proxy-worker'; // Use proxy for all Worker calls
-    let refreshInterval = null; // Store the interval ID
-    let isRefreshing = false; // Prevent concurrent refreshes
-    let refreshRetryCount = 0;
-    const MAX_RETRIES = 3;
-    const BASE_RETRY_DELAY = 5000; // 5 seconds base delay
+    const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 
-    // Load tokens from sessionStorage on page load
-    function loadTokens() {
-      const storedRefreshToken = sessionStorage.getItem('refreshToken');
-      if (storedRefreshToken) {
-        refreshToken = storedRefreshToken;
-        refreshAccessToken();
-      } else {
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('bookingsSection').style.display = 'none';
-      }
-    }
-
-    // Refresh access token with retry logic
-    async function refreshAccessToken(retry = false) {
-      if (isRefreshing && !retry) return; // Prevent concurrent refreshes
-      if (!refreshToken) {
-        showModal('error', 'Session Expired', 'Please login again.');
-        sessionStorage.removeItem('refreshToken');
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('bookingsSection').style.display = 'none';
-        return;
-      }
-
-      isRefreshing = true;
-      try {
-        const response = await fetch(`${SERVER_URL}/api/refresh-token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-        const data = await response.json();
-        if (data.success) {
-          accessToken = data.accessToken;
-          refreshRetryCount = 0; // Reset retry count on success
-          document.getElementById('authSection').style.display = 'none';
-          document.getElementById('bookingsSection').style.display = 'block';
-          await loadPendingBookings();
-          setupRefreshInterval(); // Reset interval on successful refresh
-        } else {
-          throw new Error(data.error || 'Failed to refresh token');
-        }
-      } catch (error) {
-        console.error('Token Refresh Error:', error);
-        if (refreshRetryCount < MAX_RETRIES) {
-          refreshRetryCount++;
-          const delay = BASE_RETRY_DELAY * Math.pow(2, refreshRetryCount); // Exponential backoff
-          console.log(`Retrying token refresh in ${delay/1000} seconds...`);
-          setTimeout(() => refreshAccessToken(true), delay);
-        } else {
-          showModal('error', 'Session Expired', 'Please login again.');
-          sessionStorage.removeItem('refreshToken');
-          document.getElementById('authSection').style.display = 'block';
-          document.getElementById('bookingsSection').style.display = 'none';
-          clearRefreshInterval();
-        }
-      } finally {
-        isRefreshing = false;
-      }
-    }
-
-    // Setup refresh interval
-    function setupRefreshInterval() {
-      clearRefreshInterval(); // Clear any existing interval
-      refreshInterval = setInterval(() => refreshAccessToken(false), 25 * 60 * 1000); // Refresh every 25 minutes
-    }
-
-    // Clear refresh interval
-    function clearRefreshInterval() {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-        refreshInterval = null;
-      }
-    }
-
-    // Modal Utility Functions
+    // --- Modal Utility Functions ---
     const customModal = document.getElementById('customModal');
     const modalTitle = document.getElementById('modalTitle');
     const modalMessage = document.getElementById('modalMessage');
@@ -429,47 +93,39 @@
       return new Promise(resolve => {
         modalTitle.textContent = title;
         modalMessage.textContent = message;
-        modalIcon.className = 'modal-icon'; // Reset class
-        modalActions.innerHTML = ''; // Clear buttons
+        modalIcon.className = 'modal-icon';
+        modalActions.innerHTML = '';
 
         if (type === 'confirm') {
           modalIcon.classList.add('modal-confirm-icon');
           modalIcon.innerHTML = '⚠️';
-
           const btnPrimary = document.createElement('button');
           btnPrimary.className = 'btn-primary';
           btnPrimary.textContent = 'Yes, Proceed';
           btnPrimary.onclick = () => { hideModal(); onConfirm && onConfirm(); resolve(true); };
-
           const btnSecondary = document.createElement('button');
           btnSecondary.className = 'btn-secondary';
           btnSecondary.textContent = 'Cancel';
           btnSecondary.onclick = () => { hideModal(); resolve(false); };
-
           modalActions.appendChild(btnSecondary);
           modalActions.appendChild(btnPrimary);
-
         } else if (type === 'success') {
           modalIcon.classList.add('modal-success-icon');
           modalIcon.innerHTML = '✅';
-
           const btnPrimary = document.createElement('button');
           btnPrimary.className = 'btn-primary';
           btnPrimary.textContent = 'OK';
           btnPrimary.onclick = () => { hideModal(); resolve(true); };
           modalActions.appendChild(btnPrimary);
-
         } else if (type === 'error') {
           modalIcon.classList.add('modal-error-icon');
           modalIcon.innerHTML = '❌';
-
           const btnPrimary = document.createElement('button');
           btnPrimary.className = 'btn-primary';
           btnPrimary.textContent = 'Close';
           btnPrimary.onclick = () => { hideModal(); resolve(false); };
           modalActions.appendChild(btnPrimary);
         }
-
         customModal.classList.add('active');
       });
     }
@@ -478,9 +134,68 @@
       customModal.classList.remove('active');
     }
 
+    // --- Token Handling ---
+    async function refreshAccessToken() {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) return false;
+
+      try {
+        const res = await fetch(`${SERVER_URL}/api/refresh-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        });
+        const data = await res.json();
+        if (data.success) {
+          localStorage.setItem('accessToken', data.accessToken);
+          return true;
+        } else {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('adminSecret');
+          return false;
+        }
+      } catch (err) {
+        console.error('Token refresh error:', err);
+        return false;
+      }
+    }
+
+    async function makeAuthenticatedRequest(url, options = {}) {
+      let accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        showAuthSection();
+        return null;
+      }
+
+      options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${accessToken}`,
+        'X-App-Secret': localStorage.getItem('adminSecret')
+      };
+
+      let res = await fetch(url, options);
+      if (res.status === 403) {
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) {
+          showAuthSection();
+          return null;
+        }
+        accessToken = localStorage.getItem('accessToken');
+        options.headers['Authorization'] = `Bearer ${accessToken}`;
+        res = await fetch(url, options);
+      }
+      return res;
+    }
+
+    // --- Auth Handling ---
+    function showAuthSection() {
+      document.getElementById('authSection').style.display = 'block';
+      document.getElementById('bookingsSection').style.display = 'none';
+    }
+
     async function login() {
       const pin = document.getElementById('pinInput').value;
-
       if (!pin) {
         await showModal('error', 'Login Error', 'Please enter the Admin PIN.');
         return;
@@ -490,28 +205,21 @@
       try {
         const authResponse = await fetch(`${SERVER_URL}/api/auth`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pin })
         });
-
         const authData = await authResponse.json();
 
         if (!authData.success) {
           throw new Error(authData.message || 'Invalid PIN');
         }
 
-        accessToken = authData.accessToken;
-        refreshToken = authData.refreshToken;
-        sessionStorage.setItem('refreshToken', refreshToken);
-        setupRefreshInterval(); // Start interval after successful login
-
+        localStorage.setItem('accessToken', authData.accessToken);
+        localStorage.setItem('refreshToken', authData.refreshToken);
+        localStorage.setItem('adminSecret', authData.adminSecret);
         document.getElementById('authSection').style.display = 'none';
         document.getElementById('bookingsSection').style.display = 'block';
-
         await loadPendingBookings();
-
       } catch (error) {
         await showModal('error', 'Login Failed', `Login failed: ${error.message}`);
         console.error('Login Error:', error);
@@ -520,43 +228,18 @@
       }
     }
 
+    // --- Booking Functions ---
     async function loadPendingBookings() {
-      if (!accessToken) {
-        await showModal('error', 'Access Required', 'Not logged in. Please login first.');
-        return;
-      }
       showLoading('Fetching bookings...');
       try {
-        const response = await fetch(`${SERVER_URL}${WORKER_ENDPOINT}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-          },
-          body: JSON.stringify({
-            endpoint: '/api/get-pending-bookings',
-            method: 'GET',
-            secretLevel: 'read' // Adjust if needed (read/write/admin)
-          })
-        });
-
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            // Only refresh if local proxy auth fails (not Worker issue)
-            await refreshAccessToken(true);
-            return;
-          }
-          throw new Error('Failed to fetch bookings');
-        }
-
+        const response = await makeAuthenticatedRequest(`${WORKER_URL}/api/get-pending-bookings`);
+        if (!response) return;
+        if (!response.ok) throw new Error('Failed to fetch bookings');
         const data = await response.json();
-        if (!data.success) {
-          throw new Error(data.error || 'Proxy error');
-        }
-        renderBookings(data.bookings || []); // Assume data.bookings from proxy response
+        renderBookings(data.bookings);
       } catch (error) {
         console.error('Error loading bookings:', error);
-        await showModal('error', 'Fetch Error', 'Failed to load bookings. Please try again.');
+        await showModal('error', 'Fetch Error', 'Failed to load bookings. Check WORKER_URL and Admin Secret.');
       } finally {
         hideLoading();
       }
@@ -564,13 +247,11 @@
 
     function renderBookings(bookings) {
       const grid = document.getElementById('bookingsGrid');
-
       if (!bookings || !bookings.length) {
         grid.innerHTML = `
-          <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #6c757d; font-size: 18px;">
+          <div style="grid-column:1/-1;text-align:center;padding:60px;color:#6c757d;font-size:18px;">
             <p>🎉 No pending bookings found! Everything looks clear.</p>
-          </div>
-        `;
+          </div>`;
         return;
       }
 
@@ -580,139 +261,80 @@
             <span class="booking-id">#${booking.booking_id}</span>
             <span class="pending-badge">Pending</span>
           </div>
-          
           <div class="booking-detail">
             <span class="label">Customer:</span>
             <span class="value">${booking.customer_name}</span>
           </div>
-          
           <div class="booking-detail">
             <span class="label">Phone:</span>
             <span class="value">${booking.customer_phone}</span>
           </div>
-          
           <div class="booking-detail">
             <span class="label">Email:</span>
             <span class="value">${booking.customer_email || 'N/A'}</span>
           </div>
-          
           <div class="booking-detail">
             <span class="label">Date/Time:</span>
             <span class="value">${booking.event_date} @ ${booking.time_slot}</span>
           </div>
-          
           <div class="booking-detail">
             <span class="label">Venue:</span>
             <span class="value">${booking.venue_name}</span>
           </div>
-          
           <div class="booking-detail">
             <span class="label">Total:</span>
             <span class="value">₹${booking.grand_total}</span>
           </div>
-
           <div class="actions">
-            <button class="confirm-btn" onclick="confirmBooking('${booking.booking_id}')">
-              ✅ Confirm
-            </button>
-            <button class="decline-btn" onclick="declineBooking('${booking.booking_id}')">
-              ❌ Decline
-            </button>
+            <button class="confirm-btn" onclick="confirmBooking('${booking.booking_id}')">✅ Confirm</button>
+            <button class="decline-btn" onclick="declineBooking('${booking.booking_id}')">❌ Decline</button>
           </div>
         </div>
       `).join('');
     }
 
     async function confirmBooking(bookingId) {
-      await showModal('confirm', 'Confirm Booking',
-        `Are you sure you want to CONFIRM booking #${bookingId}? This will notify the customer.`,
-        async () => {
-          showLoading(`Confirming booking #${bookingId}...`);
-          try {
-            const response = await fetch(`${SERVER_URL}${WORKER_ENDPOINT}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
-              },
-              body: JSON.stringify({
-                endpoint: '/api/confirm-booking',
-                method: 'POST',
-                body: { booking_id: bookingId },
-                secretLevel: 'write' // Adjust if needed (read/write/admin)
-              })
-            });
-
-            if (!response.ok) {
-              if (response.status === 401 || response.status === 403) {
-                // Only refresh if local proxy auth fails
-                await refreshAccessToken(true);
-                return;
-              }
-              throw new Error('Failed to confirm booking');
-            }
-
-            const data = await response.json();
-            if (!data.success) {
-              throw new Error(data.error || 'Proxy error');
-            }
-
-            await showModal('success', 'Confirmed!', `Booking #${bookingId} confirmed successfully!`);
-            await loadPendingBookings();
-          } catch (error) {
-            console.error('Error confirming booking:', error);
-            await showModal('error', 'Action Failed', `Failed to confirm booking #${bookingId}.`);
-          } finally {
-            hideLoading();
-          }
+      await showModal('confirm', 'Confirm Booking', `Are you sure you want to CONFIRM booking #${bookingId}? This will notify the customer.`, async () => {
+        showLoading(`Confirming booking #${bookingId}...`);
+        try {
+          const response = await makeAuthenticatedRequest(`${WORKER_URL}/api/confirm-booking`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ booking_id: bookingId })
+          });
+          if (!response) return;
+          if (!response.ok) throw new Error('Failed to confirm booking');
+          await showModal('success', 'Confirmed!', `Booking #${bookingId} confirmed successfully!`);
+          await loadPendingBookings();
+        } catch (error) {
+          console.error('Error confirming booking:', error);
+          await showModal('error', 'Action Failed', `Failed to confirm booking #${bookingId}.`);
+        } finally {
+          hideLoading();
         }
-      );
+      });
     }
 
     async function declineBooking(bookingId) {
-      await showModal('confirm', 'Decline Booking',
-        `Are you sure you want to DECLINE booking #${bookingId}? The customer will be notified, and the booking status will be set to 'DECLINED' in the records.`,
-        async () => {
-          showLoading(`Declining booking #${bookingId}...`);
-          try {
-            const response = await fetch(`${SERVER_URL}${WORKER_ENDPOINT}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
-              },
-              body: JSON.stringify({
-                endpoint: '/api/decline-booking',
-                method: 'POST',
-                body: { booking_id: bookingId },
-                secretLevel: 'write' // Adjust if needed (read/write/admin)
-              })
-            });
-
-            if (!response.ok) {
-              if (response.status === 401 || response.status === 403) {
-                // Only refresh if local proxy auth fails
-                await refreshAccessToken(true);
-                return;
-              }
-              throw new Error('Failed to decline booking');
-            }
-
-            const data = await response.json();
-            if (!data.success) {
-              throw new Error(data.error || 'Proxy error');
-            }
-
-            await showModal('success', 'Declined', `Booking #${bookingId} status updated to DECLINED successfully!`);
-            await loadPendingBookings();
-          } catch (error) {
-            console.error('Error declining booking:', error);
-            await showModal('error', 'Action Failed', `Failed to decline booking #${bookingId}.`);
-          } finally {
-            hideLoading();
-          }
+      await showModal('confirm', 'Decline Booking', `Are you sure you want to DECLINE booking #${bookingId}? The customer will be notified, and the booking status will be set to 'DECLINED' in the records.`, async () => {
+        showLoading(`Declining booking #${bookingId}...`);
+        try {
+          const response = await makeAuthenticatedRequest(`${WORKER_URL}/api/decline-booking`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ booking_id: bookingId })
+          });
+          if (!response) return;
+          if (!response.ok) throw new Error('Failed to decline booking');
+          await showModal('success', 'Declined', `Booking #${bookingId} status updated to DECLINED successfully!`);
+          await loadPendingBookings();
+        } catch (error) {
+          console.error('Error declining booking:', error);
+          await showModal('error', 'Action Failed', `Failed to decline booking #${bookingId}.`);
+        } finally {
+          hideLoading();
         }
-      );
+      });
     }
 
     function showLoading(message = 'Processing...') {
@@ -726,19 +348,18 @@
 
     // Refresh button handler
     document.getElementById('refreshBtn').addEventListener('click', () => {
-      if (accessToken) loadPendingBookings();
+      if (localStorage.getItem('accessToken')) loadPendingBookings();
       else showModal('error', 'Access Required', 'Please login first to refresh bookings.');
     });
 
-    // Initialize on page load
-    window.addEventListener('load', () => {
-      clearRefreshInterval(); // Ensure no stale intervals
-      loadTokens();
-    });
-
-    // Cleanup on page unload
-    window.addEventListener('unload', clearRefreshInterval);
+    // Check for existing token on page load
+    if (localStorage.getItem('accessToken')) {
+      document.getElementById('authSection').style.display = 'none';
+      document.getElementById('bookingsSection').style.display = 'block';
+      loadPendingBookings();
+    } else {
+      showAuthSection();
+    }
   </script>
 </body>
-
 </html>
