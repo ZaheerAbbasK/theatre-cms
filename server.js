@@ -41,7 +41,7 @@ const verifyToken = (req, res, next) => {
 // --------------------------------------------------------------------
 // ✅ SECURE ROUTE: Cloudflare Worker Proxy
 // --------------------------------------------------------------------
-app.post('/api/proxy-worker', verifyToken, async (req, res) => {
+app.post('/api/proxy-worker', async (req, res) => {
   const { endpoint, method, body, secretLevel } = req.body;
 
   let appSecret;
@@ -188,7 +188,7 @@ app.get("/booking-admin", (req, res) => {
 const upload = multer();
 
 // ✅ API route: Get latest theatre images (protected)
-app.get("/api/images", verifyToken, async (req, res) => {
+app.get("/api/images", async (req, res) => {
   try {
     const folders = ["birthday", "couple", "private"];
     const urls = {};

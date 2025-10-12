@@ -315,7 +315,7 @@
     async function loadImages() {
       overlay.style.display = "flex";
       try {
-        const res = await makeAuthenticatedRequest(`${SERVER_URL}/api/images`);
+        const res = await fetch(`${SERVER_URL}/api/images`);
         if (!res) return;
         const images = await res.json();
         if (res.ok) {
