@@ -3,7 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
-const jwt = require("jsonwebtoken"); // Added for JWT
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
@@ -13,7 +13,7 @@ const path = require("path");
 
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 
-// JWT Secret Keys (ensure these are set in .env)
+// JWT Secret Keys
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "your_access_token_secret";
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "your_refresh_token_secret";
 
@@ -23,7 +23,7 @@ let refreshTokens = [];
 // Middleware to verify JWT access token
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Expect "Bearer <token>"
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
     return res.status(401).json({ success: false, error: 'Access token required' });
@@ -33,14 +33,12 @@ const verifyToken = (req, res, next) => {
     if (err) {
       return res.status(403).json({ success: false, error: 'Invalid or expired access token' });
     }
-    req.user = user; // Attach user data to request
+    req.user = user;
     next();
   });
 };
 
-// --------------------------------------------------------------------
-// ✅ SECURE ROUTE: Cloudflare Worker Proxy
-// --------------------------------------------------------------------
+// Cloudflare Worker Proxy
 app.post('/api/proxy-worker', async (req, res) => {
   const { endpoint, method, body, secretLevel } = req.body;
 
@@ -88,12 +86,12 @@ app.post('/api/proxy-worker', async (req, res) => {
   }
 });
 
-// Function to securely URL-encode parameters
+// URL encode utility
 function urlEncode(str) {
   return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
-// ✅ NEW ROUTE: Fetch UPI recipient details (VPA and name)
+// Fetch UPI recipient details
 app.get('/api/upi-details', (req, res) => {
   res.json({
     vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
@@ -101,7 +99,7 @@ app.get('/api/upi-details', (req, res) => {
   });
 });
 
-// ✅ NEW ROUTE FOR UPI REDIRECT
+// UPI redirect
 app.get('/api/pay-upi', (req, res) => {
   const bookingId = req.query.bookingId || 'NO_BOOKING_ID';
   const amount = parseFloat(req.query.amount).toFixed(2) || '0.00';
@@ -123,36 +121,32 @@ app.get('/api/pay-upi', (req, res) => {
   res.redirect(302, upiLink);
 });
 
-// --------------------------------------------------------------------
-// fallback: open admin.html when hitting /admin
+// Serve admin panel
 app.get("/admin", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "admin.html"));
+  res.sendFile(path.join(__dirname, "public", "booking-admin.html"));
 });
 
-// ✅ Cloudinary config
+// Cloudinary config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ✅ Auth route: Generate access and refresh tokens
+// Auth route
 app.post("/api/auth", (req, res) => {
   const { pin } = req.body;
 
   if (pin === process.env.ADMINPIN) {
-    // Generate access token (30 minutes)
     const accessToken = jwt.sign({ role: 'admin' }, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
-    // Generate refresh token (30 days)
     const refreshToken = jwt.sign({ role: 'admin' }, REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
-    // Store refresh token
     refreshTokens.push(refreshToken);
 
     res.json({
       success: true,
       accessToken,
       refreshToken,
-      adminSecret: process.env.DB_ADMIN_SECRET // Still needed for worker proxy
+      adminSecret: process.env.DB_ADMIN_SECRET
     });
   } else {
     res.status(401).json({
@@ -162,7 +156,7 @@ app.post("/api/auth", (req, res) => {
   }
 });
 
-// ✅ NEW ROUTE: Refresh access token
+// Refresh access token
 app.post("/api/refresh-token", (req, res) => {
   const { refreshToken } = req.body;
 
@@ -174,20 +168,14 @@ app.post("/api/refresh-token", (req, res) => {
     if (err) {
       return res.status(403).json({ success: false, error: 'Invalid or expired refresh token' });
     }
-    // Generate new access token
     const newAccessToken = jwt.sign({ role: 'admin' }, ACCESS_TOKEN_SECRET, { expiresIn: '30m' });
     res.json({ success: true, accessToken: newAccessToken });
   });
 });
 
-// Add a route to serve booking-admin.html
-app.get("/booking-admin", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "booking-admin.html"));
-});
-
 const upload = multer();
 
-// ✅ API route: Get latest theatre images (protected)
+// Get latest theatre images
 app.get("/api/images", async (req, res) => {
   try {
     const folders = ["birthday", "couple", "private"];
@@ -213,7 +201,7 @@ app.get("/api/images", async (req, res) => {
   }
 });
 
-// ✅ API route: Upload theatre image (protected, no PIN needed)
+// Upload theatre image
 app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, res) => {
   try {
     const theatre = req.params.theatre;
@@ -240,5 +228,5 @@ app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, re
   }
 });
 
-// ✅ Export the app for Vercel serverless
+// Export for Vercel
 module.exports = app;

@@ -3,56 +3,275 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Booking Admin - Beano's Hub</title>
+  <title>Beano's Hub Admin Panel</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    * {box-sizing:border-box;margin:0;padding:0;}
-    body {font-family:'Inter',sans-serif;background:#e9ecef;min-height:100vh;padding:20px;color:#343a40;}
-    .container {max-width:1200px;margin:0 auto;}
-    .header {background:#ffffff;padding:20px 30px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;border-left:5px solid #007bff;}
-    h1 {color:#1a1a2e;font-size:26px;font-weight:700;}
-    .auth-section {background:#ffffff;padding:40px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);text-align:center;max-width:450px;margin:60px auto;display:none;}
-    input {width:100%;padding:14px;border:1px solid #ced4da;border-radius:8px;margin-bottom:20px;font-size:16px;transition:border-color 0.3s;}
-    input:focus {border-color:#007bff;outline:none;box-shadow:0 0 0 0.2rem rgba(0,123,255,0.25);}
-    button {padding:12px 20px;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:0.3s ease-in-out;font-size:16px;}
-    .login-btn {background:#007bff;color:white;width:100%;margin-top:10px;}
-    .login-btn:hover {background:#0056b3;transform:translateY(-1px);}
-    #refreshBtn {background:#6c757d;color:white;padding:10px 20px;font-size:16px;border-radius:8px;}
-    #refreshBtn:hover {background:#5a6268;}
-    .bookings-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:25px;margin-top:25px;}
-    .booking-card {background:#ffffff;padding:25px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.05);transition:transform 0.2s;}
-    .booking-card:hover {transform:translateY(-3px);}
-    .booking-header {display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding-bottom:15px;border-bottom:1px dashed #dee2e6;}
-    .booking-id {font-weight:700;color:#007bff;font-size:18px;}
-    .pending-badge {background:#ffc107;color:#343a40;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;text-transform:uppercase;}
-    .booking-detail {margin-bottom:10px;font-size:15px;}
-    .label {color:#6c757d;font-weight:500;margin-right:8px;}
-    .value {color:#212529;font-weight:600;}
-    .actions {display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:25px;}
-    .confirm-btn {background:#28a745;color:white;}
-    .confirm-btn:hover {background:#218838;}
-    .decline-btn {background:#dc3545;color:white;}
-    .decline-btn:hover {background:#c82333;}
-    .loading {position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:18px;font-weight:600;color:#007bff;display:none;z-index:1000;}
-    .modal-overlay {position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;justify-content:center;align-items:center;z-index:2000;opacity:0;visibility:hidden;transition:opacity 0.3s,visibility 0.3s;}
-    .modal-overlay.active {opacity:1;visibility:visible;}
-    .modal-content {background:white;padding:30px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.2);max-width:400px;width:90%;text-align:center;transform:scale(0.9);transition:transform 0.3s ease-out;}
-    .modal-overlay.active .modal-content {transform:scale(1);}
-    .modal-icon {font-size:40px;margin-bottom:15px;}
-    .modal-confirm-icon {color:#ffc107;}
-    .modal-success-icon {color:#28a745;}
-    .modal-error-icon {color:#dc3545;}
-    .modal-message {margin-bottom:25px;font-size:16px;color:#495057;}
-    .modal-title {font-size:24px;font-weight:700;margin-bottom:10px;}
-    .modal-actions button {margin:0 10px;padding:10px 20px;font-weight:600;}
-    .modal-actions .btn-primary {background:#007bff;color:white;}
-    .modal-actions .btn-secondary {background:#f8f9fa;color:#6c757d;border:1px solid #ced4da;}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #fef3e8, #ffd7b5);
+      min-height: 100vh;
+      padding: 20px;
+      color: #343a40;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header {
+      background: #ffffff;
+      padding: 20px 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-left: 5px solid #007bff;
+    }
+    h1 { color: #1a1a2e; font-size: 26px; font-weight: 700; text-align: center; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      background: #f8f9fa;
+      color: #343a40;
+      transition: background 0.3s, color 0.3s;
+    }
+    .tab-btn.active { background: #007bff; color: white; }
+    .tab-btn:hover { background: #e9ecef; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .auth-section {
+      background: #ffffff;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      text-align: center;
+      max-width: 450px;
+      margin: 60px auto;
+      display: none;
+      animation: fadeIn 0.5s ease;
+    }
+    input[type="password"] {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #ced4da;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+    input[type="password"]:focus {
+      border-color: #007bff;
+      outline: none;
+      box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+    }
+    .login-btn {
+      background: #007bff;
+      color: white;
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.2s;
+    }
+    .login-btn:hover { background: #0056b3; transform: translateY(-2px); }
+    #refreshBtn {
+      background: #6c757d;
+      color: white;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+    #refreshBtn:hover { background: #5a6268; }
+    .bookings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 25px;
+      margin-top: 25px;
+    }
+    .booking-card {
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      transition: transform 0.2s;
+    }
+    .booking-card:hover { transform: translateY(-3px); }
+    .booking-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px dashed #dee2e6;
+    }
+    .booking-id { font-weight: 700; color: #007bff; font-size: 18px; }
+    .pending-badge {
+      background: #ffc107;
+      color: #343a40;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .booking-detail { margin-bottom: 10px; font-size: 15px; }
+    .label { color: #6c757d; font-weight: 500; margin-right: 8px; }
+    .value { color: #212529; font-weight: 600; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 25px; }
+    .confirm-btn { background: #28a745; color: white; }
+    .confirm-btn:hover { background: #218838; }
+    .decline-btn { background: #dc3545; color: white; }
+    .decline-btn:hover { background: #c82333; }
+    .card-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 30px;
+      width: 100%;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 30px;
+      width: 320px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+    }
+    .card h2 {
+      margin-bottom: 20px;
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: #4b2e25;
+      text-align: center;
+    }
+    .image-box {
+      width: 100%;
+      height: 200px;
+      background: #f5d1c1;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .image-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 12px;
+      transition: transform 0.3s ease;
+    }
+    .image-box:hover img { transform: scale(1.05); }
+    input[type="file"] {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #f9f9f9;
+      transition: border-color 0.3s ease;
+    }
+    input[type="file"]:focus {
+      border-color: #ff6b35;
+      outline: none;
+    }
+    button.upload-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 10px;
+      border: none;
+      font-weight: 600;
+      font-size: 16px;
+      color: #fff;
+      background: #ff6b35;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.2s ease;
+    }
+    button.upload-btn:hover { background: #e55a2b; transform: translateY(-2px); }
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(5px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      z-index: 1000;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    .modal-overlay.active { opacity: 1; visibility: visible; }
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      transform: scale(0.9);
+      transition: transform 0.3s ease-out;
+    }
+    .modal-overlay.active .modal-content { transform: scale(1); }
+    .modal-icon { font-size: 40px; margin-bottom: 15px; }
+    .modal-confirm-icon { color: #ffc107; }
+    .modal-success-icon { color: #28a745; }
+    .modal-error-icon { color: #dc3545; }
+    .modal-message { margin-bottom: 25px; font-size: 16px; color: #495057; }
+    .modal-title { font-size: 24px; font-weight: 700; margin-bottom: 10px; }
+    .modal-actions button { margin: 0 10px; padding: 10px 20px; font-weight: 600; }
+    .modal-actions .btn-primary { background: #007bff; color: white; }
+    .modal-actions .btn-secondary { background: #f8f9fa; color: #6c757d; border: 1px solid #ced4da; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @media (max-width: 600px) {
+      .card { width: 90%; }
+      h1 { font-size: 2rem; }
+      .auth-section { padding: 30px; }
+      .bookings-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>Beano's Hub - Booking Admin</h1>
+      <h1>Beano's Hub Admin Panel</h1>
       <button id="refreshBtn">↻ Refresh</button>
     </div>
 
@@ -62,8 +281,36 @@
       <button class="login-btn" onclick="login()">Login</button>
     </div>
 
-    <div id="bookingsSection" style="display:none">
-      <div class="bookings-grid" id="bookingsGrid"></div>
+    <div id="mainContent" style="display:none;">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('bookings')">Bookings</button>
+        <button class="tab-btn" onclick="showTab('images')">Image Upload</button>
+      </div>
+      <div id="bookings" class="tab-content active">
+        <div class="bookings-grid" id="bookingsGrid"></div>
+      </div>
+      <div id="images" class="tab-content">
+        <div class="card-container">
+          <div class="card">
+            <h2>Birthday Theatre</h2>
+            <div class="image-box" id="birthdayImageBox">Loading...</div>
+            <input type="file" id="birthdayFile" accept="image/*">
+            <button class="upload-btn" id="birthdayBtn">Upload</button>
+          </div>
+          <div class="card">
+            <h2>Couple Theatre</h2>
+            <div class="image-box" id="coupleImageBox">Loading...</div>
+            <input type="file" id="coupleFile" accept="image/*">
+            <button class="upload-btn" id="coupleBtn">Upload</button>
+          </div>
+          <div class="card">
+            <h2>Private Theatre</h2>
+            <div class="image-box" id="privateImageBox">Loading...</div>
+            <input type="file" id="privateFile" accept="image/*">
+            <button class="upload-btn" id="privateBtn">Upload</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -82,7 +329,7 @@
     const SERVER_URL = window.location.origin;
     const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 
-    // --- Modal Utility Functions ---
+    // Modal Utility Functions
     const customModal = document.getElementById('customModal');
     const modalTitle = document.getElementById('modalTitle');
     const modalMessage = document.getElementById('modalMessage');
@@ -134,7 +381,20 @@
       customModal.classList.remove('active');
     }
 
-    // --- Token Handling ---
+    // Tab Switching
+    function showTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.querySelector(`button[onclick="showTab('${tabId}')"]`).classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+      if (tabId === 'bookings') {
+        loadPendingBookings();
+      } else if (tabId === 'images') {
+        loadImages();
+      }
+    }
+
+    // Token Handling
     async function refreshAccessToken() {
       const refreshToken = localStorage.getItem('refreshToken');
       if (!refreshToken) return false;
@@ -188,10 +448,10 @@
       return res;
     }
 
-    // --- Auth Handling ---
+    // Auth Handling
     function showAuthSection() {
       document.getElementById('authSection').style.display = 'block';
-      document.getElementById('bookingsSection').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'none';
     }
 
     async function login() {
@@ -218,8 +478,8 @@
         localStorage.setItem('refreshToken', authData.refreshToken);
         localStorage.setItem('adminSecret', authData.adminSecret);
         document.getElementById('authSection').style.display = 'none';
-        document.getElementById('bookingsSection').style.display = 'block';
-        await loadPendingBookings();
+        document.getElementById('mainContent').style.display = 'block';
+        showTab('bookings'); // Default to bookings tab
       } catch (error) {
         await showModal('error', 'Login Failed', `Login failed: ${error.message}`);
         console.error('Login Error:', error);
@@ -228,7 +488,7 @@
       }
     }
 
-    // --- Booking Functions ---
+    // Booking Functions
     async function loadPendingBookings() {
       showLoading('Fetching bookings...');
       try {
@@ -337,6 +597,80 @@
       });
     }
 
+    // Image Functions
+    async function loadImages() {
+      showLoading('Fetching images...');
+      try {
+        const res = await makeAuthenticatedRequest(`${SERVER_URL}/api/images`);
+        if (!res) return;
+        const images = await res.json();
+        if (res.ok) {
+          const ts = Date.now();
+          document.getElementById("birthdayImageBox").innerHTML = `<img src="${images.birthday}?t=${ts}" alt="Birthday Theatre">`;
+          document.getElementById("coupleImageBox").innerHTML = `<img src="${images.couple}?t=${ts}" alt="Couple Theatre">`;
+          document.getElementById("privateImageBox").innerHTML = `<img src="${images.private}?t=${ts}" alt="Private Theatre">`;
+        } else {
+          await showModal('error', 'Fetch Error', 'Failed to load images: ' + images.error);
+        }
+      } catch (err) {
+        console.error('Error loading images:', err);
+        await showModal('error', 'Fetch Error', 'Error loading images');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    const setups = [
+      { fileId: 'birthdayFile', boxId: 'birthdayImageBox', btnId: 'birthdayBtn', theatre: 'birthday' },
+      { fileId: 'coupleFile', boxId: 'coupleImageBox', btnId: 'coupleBtn', theatre: 'couple' },
+      { fileId: 'privateFile', boxId: 'privateImageBox', btnId: 'privateBtn', theatre: 'private' }
+    ];
+
+    setups.forEach(({ fileId, boxId, btnId, theatre }) => {
+      const fileInput = document.getElementById(fileId);
+      const btn = document.getElementById(btnId);
+      const imgBox = document.getElementById(boxId);
+
+      fileInput.addEventListener("change", e => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            imgBox.innerHTML = `<img src="${reader.result}" alt="${theatre} Preview">`;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      btn.addEventListener("click", async () => {
+        const file = fileInput.files[0];
+        if (!file) {
+          await showModal('error', 'Upload Error', 'Please select an image');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        showLoading('Uploading image...');
+        try {
+          const res = await makeAuthenticatedRequest(`${SERVER_URL}/upload/${theatre}`, {
+            method: "POST",
+            body: formData
+          });
+          if (!res) return;
+          const data = await res.json();
+          await showModal('success', 'Upload Successful', data.message);
+          if (res.ok) window.location.reload();
+        } catch (err) {
+          await showModal('error', 'Upload Failed', 'Upload failed!');
+          window.location.reload();
+        } finally {
+          hideLoading();
+        }
+      });
+    });
+
     function showLoading(message = 'Processing...') {
       document.getElementById('loading').textContent = message;
       document.getElementById('loading').style.display = 'flex';
@@ -348,15 +682,20 @@
 
     // Refresh button handler
     document.getElementById('refreshBtn').addEventListener('click', () => {
-      if (localStorage.getItem('accessToken')) loadPendingBookings();
-      else showModal('error', 'Access Required', 'Please login first to refresh bookings.');
+      if (localStorage.getItem('accessToken')) {
+        const activeTab = document.querySelector('.tab-content.active').id;
+        if (activeTab === 'bookings') loadPendingBookings();
+        else if (activeTab === 'images') loadImages();
+      } else {
+        showModal('error', 'Access Required', 'Please login first to refresh content.');
+      }
     });
 
     // Check for existing token on page load
     if (localStorage.getItem('accessToken')) {
       document.getElementById('authSection').style.display = 'none';
-      document.getElementById('bookingsSection').style.display = 'block';
-      loadPendingBookings();
+      document.getElementById('mainContent').style.display = 'block';
+      showTab('bookings'); // Default to bookings tab
     } else {
       showAuthSection();
     }
