@@ -182,6 +182,26 @@
       text-transform: uppercase;
     }
 
+    .confirmed-badge {
+      background: #28a745;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .declined-badge {
+      background: #dc3545;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
     .booking-detail {
       margin-bottom: 10px;
     }
@@ -453,6 +473,32 @@
         grid-template-columns: 1fr;
       }
     }
+
+    .date-selector {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .date-selector button {
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: #f8f9fa;
+      border: 1px solid #ced4da;
+      cursor: pointer;
+    }
+
+    .date-selector button:hover {
+      background: #e9ecef;
+    }
+
+    .date-selector input[type="date"] {
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #ced4da;
+    }
   </style>
 </head>
 
@@ -471,11 +517,21 @@
 
     <div id="mainContent" style="display:none;">
       <div class="tabs">
-        <button class="tab-btn active" onclick="showTab('bookings')">Bookings</button>
+        <button class="tab-btn active" onclick="showTab('bookings')">Pending Bookings</button>
+        <button class="tab-btn" onclick="showTab('daily')">Daily Bookings</button>
         <button class="tab-btn" onclick="showTab('images')">Image Upload</button>
       </div>
       <div id="bookings" class="tab-content active">
         <div class="bookings-grid" id="bookingsGrid"></div>
+      </div>
+      <div id="daily" class="tab-content">
+        <div class="date-selector">
+          <button onclick="setDailyDate(0)">Today</button>
+          <button onclick="setDailyDate(1)">Tomorrow</button>
+          <input type="date" id="dailyDate">
+          <button onclick="loadDailyBookings()">Load</button>
+        </div>
+        <div class="bookings-grid" id="dailyGrid"></div>
       </div>
       <div id="images" class="tab-content">
         <div class="card-container">
@@ -577,6 +633,8 @@
       document.getElementById(tabId).classList.add('active');
       if (tabId === 'bookings') {
         loadPendingBookings();
+      } else if (tabId === 'daily') {
+        setDailyDate(0); // Default to today on first load
       } else if (tabId === 'images') {
         loadImages();
       }
@@ -684,7 +742,7 @@
         if (!response) return;
         if (!response.ok) throw new Error('Failed to fetch bookings');
         const data = await response.json();
-        renderBookings(data.bookings);
+        renderBookings(data.bookings, 'bookingsGrid');
       } catch (error) {
         console.error('Error loading bookings:', error);
         await showModal('error', 'Fetch Error', 'Failed to load bookings. Check WORKER_URL and Admin Secret.');
@@ -693,12 +751,12 @@
       }
     }
 
-    function renderBookings(bookings) {
-      const grid = document.getElementById('bookingsGrid');
+    function renderBookings(bookings, gridId) {
+      const grid = document.getElementById(gridId);
       if (!bookings || !bookings.length) {
         grid.innerHTML = `
           <div style="grid-column:1/-1;text-align:center;padding:60px;color:#6c757d;font-size:18px;">
-            <p>🎉 No pending bookings found! Everything looks clear.</p>
+            <p>🎉 No bookings found!</p>
           </div>`;
         return;
       }
@@ -707,7 +765,7 @@
         <div class="booking-card">
           <div class="booking-header">
             <span class="booking-id">#${booking.booking_id}</span>
-            <span class="pending-badge">Pending</span>
+            <span class="${booking.status.toLowerCase()}-badge">${booking.status}</span>
           </div>
           <div class="booking-detail">
             <span class="label">Customer:</span>
@@ -733,10 +791,12 @@
             <span class="label">Total:</span>
             <span class="value">₹${booking.grand_total}</span>
           </div>
+          ${booking.status === 'PENDING' ? `
           <div class="actions">
             <button class="confirm-btn" onclick="confirmBooking('${booking.booking_id}')">✅ Confirm</button>
             <button class="decline-btn" onclick="declineBooking('${booking.booking_id}')">❌ Decline</button>
           </div>
+          ` : ''}
         </div>
       `).join('');
     }
@@ -783,6 +843,33 @@
           hideLoading();
         }
       });
+    }
+
+    // Daily Bookings Functions
+    function setDailyDate(offset) {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      document.getElementById('dailyDate').value = d.toISOString().split('T')[0];
+      loadDailyBookings();
+    }
+
+    async function loadDailyBookings() {
+      const date = document.getElementById('dailyDate').value;
+      if (!date) return;
+
+      showLoading(`Fetching bookings for ${date}...`);
+      try {
+        const response = await makeAuthenticatedRequest(`${WORKER_URL}/api/get-bookings-by-date?date=${date}`);
+        if (!response) return;
+        if (!response.ok) throw new Error('Failed to fetch daily bookings');
+        const data = await response.json();
+        renderBookings(data.bookings, 'dailyGrid');
+      } catch (error) {
+        console.error('Error loading daily bookings:', error);
+        await showModal('error', 'Fetch Error', 'Failed to load daily bookings.');
+      } finally {
+        hideLoading();
+      }
     }
 
     // Image Functions
@@ -873,6 +960,7 @@
       if (localStorage.getItem('accessToken')) {
         const activeTab = document.querySelector('.tab-content.active').id;
         if (activeTab === 'bookings') loadPendingBookings();
+        else if (activeTab === 'daily') loadDailyBookings();
         else if (activeTab === 'images') loadImages();
       } else {
         showModal('error', 'Access Required', 'Please login first to refresh content.');
