@@ -5,17 +5,27 @@ const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
+
+
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 const path = require("path");
 
+
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
 
 // JWT Secret Keys
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "your_access_token_secret";
-const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "your_refresh_token_secret";
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
+});
 
 // Store refresh tokens in memory (use a database like Redis in production)
 let refreshTokens = [];
@@ -37,6 +47,53 @@ const verifyToken = (req, res, next) => {
     next();
   });
 };
+
+app.post('/create-order', async (req, res) => {
+  const { amount, bookingId } = req.body; // Amount in rupees, convert to paise
+  try {
+    const options = {
+      amount: amount * 100, // Convert to paise
+      currency: 'INR',
+      receipt: bookingId || `receipt_${Date.now()}`
+    };
+    const order = await razorpay.orders.create(options);
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error('Order creation error:', error);
+    res.status(500).json({ success: false, error: 'Failed to create order' });
+  }
+});
+
+// Verify Payment and Save Booking
+app.post('/verify-payment', async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingData } = req.body;
+
+  // Verify signature
+  const generated_signature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .update(razorpay_order_id + '|' + razorpay_payment_id)
+    .digest('hex');
+
+  if (generated_signature !== razorpay_signature) {
+    return res.status(400).json({ success: false, error: 'Invalid signature' });
+  }
+
+  // Signature valid: Proxy to worker to save booking
+  try {
+    const workerResponse = await fetch(`${WORKER_URL}/booking/save-secure`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Secret': process.env.DB_WRITE_SECRET // Or appropriate secret
+      },
+      body: JSON.stringify(bookingData)
+    });
+    const workerData = await workerResponse.json();
+    res.json({ success: true, message: 'Payment verified and booking saved', data: workerData });
+  } catch (error) {
+    console.error('Booking save error:', error);
+    res.status(500).json({ success: false, error: 'Failed to save booking' });
+  }
+});
 
 // Cloudflare Worker Proxy
 app.post('/api/proxy-worker', async (req, res) => {
