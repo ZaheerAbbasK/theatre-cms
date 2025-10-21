@@ -64,37 +64,6 @@ app.post('/create-order', async (req, res) => {
   }
 });
 
-// Verify Payment and Save Booking
-app.post('/verify-payment', async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingData } = req.body;
-
-  // Verify signature
-  const generated_signature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-    .update(razorpay_order_id + '|' + razorpay_payment_id)
-    .digest('hex');
-
-  if (generated_signature !== razorpay_signature) {
-    return res.status(400).json({ success: false, error: 'Invalid signature' });
-  }
-
-  // Signature valid: Proxy to worker to save booking
-  try {
-    const workerResponse = await fetch(`${WORKER_URL}/booking/save-secure`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-App-Secret': process.env.DB_WRITE_SECRET // Or appropriate secret
-      },
-      body: JSON.stringify(bookingData)
-    });
-    const workerData = await workerResponse.json();
-    res.json({ success: true, message: 'Payment verified and booking saved', data: workerData });
-  } catch (error) {
-    console.error('Booking save error:', error);
-    res.status(500).json({ success: false, error: 'Failed to save booking' });
-  }
-});
-
 // Cloudflare Worker Proxy
 app.post('/api/proxy-worker', async (req, res) => {
   const { endpoint, method, body, secretLevel } = req.body;
@@ -284,6 +253,37 @@ app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, re
     res.status(500).json({ message: "Upload failed" });
   }
 });
+// Verify Payment and Save Booking
+app.post('/verify-payment', async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingData } = req.body;
+
+  // Verify signature
+  const generated_signature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .update(razorpay_order_id + '|' + razorpay_payment_id)
+    .digest('hex');
+
+  if (generated_signature !== razorpay_signature) {
+    return res.status(400).json({ success: false, error: 'Invalid signature' });
+  }
+
+  // Signature valid: Proxy to worker to save booking
+  try {
+    const workerResponse = await fetch(`${WORKER_URL}/booking/save-secure`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Secret': process.env.DB_WRITE_SECRET // Or appropriate secret
+      },
+      body: JSON.stringify(bookingData)
+    });
+    const workerData = await workerResponse.json();
+    res.json({ success: true, message: 'Payment verified and booking saved', data: workerData });
+  } catch (error) {
+    console.error('Booking save error:', error);
+    res.status(500).json({ success: false, error: 'Failed to save booking' });
+  }
+});
+
 
 // Export for Vercel
 module.exports = app;
