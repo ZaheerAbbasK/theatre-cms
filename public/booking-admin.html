@@ -902,7 +902,7 @@
     if (localStorage.getItem('accessToken')) {
       document.getElementById('authSection').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
-      showTab('bookings'); // Default to bookings tab
+      showTab('daily'); // Default to bookings tab
     } else {
       showAuthSection();
     }
