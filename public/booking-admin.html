@@ -172,15 +172,6 @@
       font-size: 18px;
     }
 
-    .pending-badge {
-      background: #ffc107;
-      color: #343a40;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
 
     .confirmed-badge {
       background: #28a745;
@@ -517,7 +508,6 @@
 
     <div id="mainContent" style="display:none;">
       <div class="tabs">
-        <button class="tab-btn active" onclick="showTab('bookings')">Pending Bookings</button>
         <button class="tab-btn" onclick="showTab('daily')">Daily Bookings</button>
         <button class="tab-btn" onclick="showTab('images')">Image Upload</button>
       </div>
@@ -631,9 +621,7 @@
       document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
       document.querySelector(`button[onclick="showTab('${tabId}')"]`).classList.add('active');
       document.getElementById(tabId).classList.add('active');
-      if (tabId === 'bookings') {
-        loadPendingBookings();
-      } else if (tabId === 'daily') {
+      if (tabId === 'daily') {
         setDailyDate(0); // Default to today on first load
       } else if (tabId === 'images') {
         loadImages();
@@ -735,21 +723,7 @@
     }
 
     // Booking Functions
-    async function loadPendingBookings() {
-      showLoading('Fetching bookings...');
-      try {
-        const response = await makeAuthenticatedRequest(`${WORKER_URL}/api/get-pending-bookings`);
-        if (!response) return;
-        if (!response.ok) throw new Error('Failed to fetch bookings');
-        const data = await response.json();
-        renderBookings(data.bookings, 'bookingsGrid');
-      } catch (error) {
-        console.error('Error loading bookings:', error);
-        await showModal('error', 'Fetch Error', 'Failed to load bookings. Check WORKER_URL and Admin Secret.');
-      } finally {
-        hideLoading();
-      }
-    }
+
 
     function renderBookings(bookings, gridId) {
       const grid = document.getElementById(gridId);
@@ -801,49 +775,7 @@
       `).join('');
     }
 
-    async function confirmBooking(bookingId) {
-      await showModal('confirm', 'Confirm Booking', `Are you sure you want to CONFIRM booking #${bookingId}? This will notify the customer.`, async () => {
-        showLoading(`Confirming booking #${bookingId}...`);
-        try {
-          const response = await makeAuthenticatedRequest(`${WORKER_URL}/api/confirm-booking`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ booking_id: bookingId })
-          });
-          if (!response) return;
-          if (!response.ok) throw new Error('Failed to confirm booking');
-          await showModal('success', 'Confirmed!', `Booking #${bookingId} confirmed successfully!`);
-          await loadPendingBookings();
-        } catch (error) {
-          console.error('Error confirming booking:', error);
-          await showModal('error', 'Action Failed', `Failed to confirm booking #${bookingId}.`);
-        } finally {
-          hideLoading();
-        }
-      });
-    }
-
-    async function declineBooking(bookingId) {
-      await showModal('confirm', 'Decline Booking', `Are you sure you want to DECLINE booking #${bookingId}? The customer will be notified, and the booking status will be set to 'DECLINED' in the records.`, async () => {
-        showLoading(`Declining booking #${bookingId}...`);
-        try {
-          const response = await makeAuthenticatedRequest(`${WORKER_URL}/api/decline-booking`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ booking_id: bookingId })
-          });
-          if (!response) return;
-          if (!response.ok) throw new Error('Failed to decline booking');
-          await showModal('success', 'Declined', `Booking #${bookingId} status updated to DECLINED successfully!`);
-          await loadPendingBookings();
-        } catch (error) {
-          console.error('Error declining booking:', error);
-          await showModal('error', 'Action Failed', `Failed to decline booking #${bookingId}.`);
-        } finally {
-          hideLoading();
-        }
-      });
-    }
+    
 
     // Daily Bookings Functions
     function setDailyDate(offset) {
@@ -959,8 +891,7 @@
     document.getElementById('refreshBtn').addEventListener('click', () => {
       if (localStorage.getItem('accessToken')) {
         const activeTab = document.querySelector('.tab-content.active').id;
-        if (activeTab === 'bookings') loadPendingBookings();
-        else if (activeTab === 'daily') loadDailyBookings();
+        if (activeTab === 'daily') loadDailyBookings();
         else if (activeTab === 'images') loadImages();
       } else {
         showModal('error', 'Access Required', 'Please login first to refresh content.');
