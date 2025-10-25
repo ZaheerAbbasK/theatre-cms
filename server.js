@@ -6,7 +6,7 @@ const streamifier = require("streamifier");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const Razorpay = require('razorpay');
-const crypto = require('crypto');
+const crypto = require('crypto'); // <-- Already imported, which is good
 
 
 
@@ -29,6 +29,19 @@ const razorpay = new Razorpay({
 
 // Store refresh tokens in memory (use a database like Redis in production)
 let refreshTokens = [];
+
+// --- NEW HELPER FUNCTION: ID REGENERATOR ---
+function generateBookingId() {
+  // Generates a random 10-character hex string for the ID.
+  // We use `crypto.randomBytes(5)` to get 10 hex characters.
+  const randomHex = crypto.randomBytes(5).toString('hex').toUpperCase();
+  const part1 = randomHex.substring(0, 5);
+  const part2 = randomHex.substring(5);
+  // Matches the common BH-XXXXX-XXXXX format
+  return `BH-${part1}-${part2}`;
+}
+// --- END NEW HELPER FUNCTION ---
+
 
 // Middleware to verify JWT access token
 const verifyToken = (req, res, next) => {
@@ -253,9 +266,10 @@ app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, re
     res.status(500).json({ message: "Upload failed" });
   }
 });
+
 // Verify Payment and Save Booking
 app.post('/verify-payment', async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingData } = req.body;
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingData: initialBookingData } = req.body;
 
   // Verify signature
   const generated_signature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -266,23 +280,66 @@ app.post('/verify-payment', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid signature' });
   }
 
-  // Signature valid: Proxy to worker to save booking
-  try {
-    const workerResponse = await fetch(`${WORKER_URL}/booking/save-secure`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-App-Secret': process.env.DB_WRITE_SECRET // Or appropriate secret
-      },
-      body: JSON.stringify(bookingData)
-    });
-    const workerData = await workerResponse.json();
-    res.json({ success: true, message: 'Payment verified and booking saved', data: workerData });
-  } catch (error) {
-    console.error('Booking save error:', error);
-    res.status(500).json({ success: false, error: 'Failed to save booking' });
+  // --- START ID CLASH RETRY LOGIC ---
+  let currentBookingData = initialBookingData;
+  const maxRetries = 3;
+  let success = false;
+  let finalWorkerResponse;
+
+  for (let attempt = 1; attempt <= maxRetries && !success; attempt++) {
+    try {
+      const workerResponse = await fetch(`${WORKER_URL}/booking/save-secure`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-App-Secret': process.env.DB_WRITE_SECRET
+        },
+        body: JSON.stringify(currentBookingData)
+      });
+      
+      const workerData = await workerResponse.json();
+      finalWorkerResponse = workerData; // Store the final response data
+
+      if (workerResponse.status === 409 && workerData.error === 'BOOKING_ID_CLASH') {
+        // ID Clash detected. Must regenerate and retry.
+        if (attempt === maxRetries) {
+          console.error(`[FATAL CLASH] Max retries reached for ID ${currentBookingData.booking_id}.`);
+          throw new Error('Max ID regeneration retries reached. Final Worker Status 409.');
+        }
+
+        const newBookingId = generateBookingId();
+        console.warn(`[RETRY] ID Clash for ${currentBookingData.booking_id}. Regenerating to ${newBookingId} and retrying. Attempt ${attempt}`);
+        
+        // Update the bookingData for the next iteration of the loop
+        currentBookingData = { ...initialBookingData, booking_id: newBookingId };
+        
+      } else if (workerResponse.ok) {
+        // Success (Status 200, including idempotent success)
+        success = true;
+        
+      } else {
+        // Worker failed with a non-409 error (e.g., 400 or 500)
+        console.error(`Worker failed with status ${workerResponse.status}: ${workerData.error || workerData.message}`);
+        // Break loop and fail immediately on non-clash error
+        throw new Error(`Worker Error: ${workerData.error || workerData.message}`);
+      }
+
+    } catch (error) {
+      // Handles fetch errors, max retry errors, and non-clash worker errors
+      console.error('Booking save error during retry loop:', error.message);
+      return res.status(500).json({ success: false, error: 'Failed to save booking after retries.', details: error.message });
+    }
+  }
+
+  if (success) {
+    // Return the successful response from the worker
+    res.json({ success: true, message: 'Payment verified and booking saved', data: finalWorkerResponse });
+  } else {
+    // Should be caught by the try/catch, but as a final safeguard
+    res.status(500).json({ success: false, error: 'Failed to save booking: Unknown error after retries.' });
   }
 });
+// --- END ID CLASH RETRY LOGIC ---
 
 
 // Export for Vercel
