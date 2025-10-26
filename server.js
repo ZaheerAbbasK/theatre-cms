@@ -82,10 +82,20 @@ app.post('/create-order', async (req, res) => {
 // Cloudflare Worker Proxy
 app.post('/api/proxy-worker', async (req, res) => {
 
-  // Validate API Key
-  const apiKey = req.headers['x-api-key'];
-  if (!apiKey || apiKey !== process.env.API_KEY) {
-    return res.status(401).json({ success: false, error: 'Invalid or missing API key' });
+  const requestOrigin = req.headers['origin'];
+  const allowedOrigin = process.env.ALLOWED_ORIGIN;
+
+  // 2. Check if the origin matches the expected domain
+  //    We check for both 'origin' (for cross-origin requests) and 
+  //    'referer' (as a fallback, though less reliable)
+  if (!requestOrigin || requestOrigin !== allowedOrigin) {
+
+    // OPTIONAL: Basic check for direct IP access or other unexpected origins
+    const referer = req.headers['referer'];
+    if (!referer || !referer.startsWith(allowedOrigin)) {
+      console.warn(`Blocked request from unauthorized origin: ${requestOrigin || referer}`);
+      return res.status(403).json({ success: false, error: 'Unauthorized origin' });
+    }
   }
 
   const { endpoint, method, body, secretLevel } = req.body;
