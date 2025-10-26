@@ -15,12 +15,14 @@ app.use(cors());
 app.use(express.json());
 const path = require("path");
 
-
 const WORKER_URL = 'https://beanoshubordersheet.zaheerkundgol29.workers.dev';
+
+const API_KEY = process.env.API_KEY;
 
 // JWT Secret Keys
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
+
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -78,7 +80,14 @@ app.post('/create-order', async (req, res) => {
 });
 
 // Cloudflare Worker Proxy
-app.post('/api/proxy-worker', async (req, res) => {
+app.post('/api/proxy-worker', (req, res) => {
+
+  // Validate API key
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || apiKey !== process.env.API_KEY) {
+    return res.status(401).json({ success: false, error: 'Invalid or missing API key - UNAUTHORIZED' });
+  }
+
   const { endpoint, method, body, secretLevel } = req.body;
 
   let appSecret;
