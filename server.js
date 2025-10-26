@@ -82,21 +82,35 @@ app.post('/create-order', async (req, res) => {
 // Cloudflare Worker Proxy
 app.post('/api/proxy-worker', async (req, res) => {
 
+  // 1. Retrieve the allowed origins list and convert it to an array
+  const allowedOriginString = process.env.ALLOWED_ORIGIN;
+  const allowedOrigins = allowedOriginString ? allowedOriginString.split(',').map(s => s.trim()) : [];
+
+  // 2. Get the origin from the request headers
   const requestOrigin = req.headers['origin'];
-  const allowedOrigin = process.env.ALLOWED_ORIGIN;
 
-  // 2. Check if the origin matches the expected domain
-  //    We check for both 'origin' (for cross-origin requests) and 
-  //    'referer' (as a fallback, though less reliable)
-  if (!requestOrigin || requestOrigin !== allowedOrigin) {
+  // 3. Check if the incoming request origin is in the allowed list
+  let isOriginAllowed = false;
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    isOriginAllowed = true;
+  }
 
-    // OPTIONAL: Basic check for direct IP access or other unexpected origins
+  // As a fallback, check the referer (less reliable, but good for some same-origin navigations)
+  if (!isOriginAllowed) {
     const referer = req.headers['referer'];
-    if (!referer || !referer.startsWith(allowedOrigin)) {
-      console.warn(`Blocked request from unauthorized origin: ${requestOrigin || referer}`);
-      return res.status(403).json({ success: false, error: 'Unauthorized origin' });
+    if (referer) {
+      // Check if the referer starts with any of the allowed origins
+      isOriginAllowed = allowedOrigins.some(origin => referer.startsWith(origin));
     }
   }
+
+  if (!isOriginAllowed) {
+    console.warn(`Blocked request from unauthorized origin: ${requestOrigin || req.headers['referer']}`);
+    // Terminate the request with a Forbidden status
+    return res.status(403).json({ success: false, error: 'Unauthorized origin' });
+  }
+
+  // The request is now authenticated and verified to come from an allowed domain.
 
   const { endpoint, method, body, secretLevel } = req.body;
 
