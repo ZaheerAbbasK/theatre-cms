@@ -80,12 +80,12 @@ app.post('/create-order', async (req, res) => {
 });
 
 // Cloudflare Worker Proxy
-app.post('/api/proxy-worker', (req, res) => {
+app.post('/api/proxy-worker', async (req, res) => {
 
-  // Validate API key
+  // Validate API Key
   const apiKey = req.headers['x-api-key'];
   if (!apiKey || apiKey !== process.env.API_KEY) {
-    return res.status(401).json({ success: false, error: 'Invalid or missing API key - UNAUTHORIZED' });
+    return res.status(401).json({ success: false, error: 'Invalid or missing API key' });
   }
 
   const { endpoint, method, body, secretLevel } = req.body;
@@ -305,7 +305,7 @@ app.post('/verify-payment', async (req, res) => {
         },
         body: JSON.stringify(currentBookingData)
       });
-      
+
       const workerData = await workerResponse.json();
       finalWorkerResponse = workerData; // Store the final response data
 
@@ -318,14 +318,14 @@ app.post('/verify-payment', async (req, res) => {
 
         const newBookingId = generateBookingId();
         console.warn(`[RETRY] ID Clash for ${currentBookingData.booking_id}. Regenerating to ${newBookingId} and retrying. Attempt ${attempt}`);
-        
+
         // Update the bookingData for the next iteration of the loop
         currentBookingData = { ...initialBookingData, booking_id: newBookingId };
-        
+
       } else if (workerResponse.ok) {
         // Success (Status 200, including idempotent success)
         success = true;
-        
+
       } else {
         // Worker failed with a non-409 error (e.g., 400 or 500)
         console.error(`Worker failed with status ${workerResponse.status}: ${workerData.error || workerData.message}`);
