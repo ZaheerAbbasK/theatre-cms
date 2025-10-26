@@ -163,35 +163,48 @@ function urlEncode(str) {
   return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
-// Fetch UPI recipient details
-app.get('/api/upi-details', (req, res) => {
+app.get('/api/telegram-credentials', (req, res) => {
+  // Retrieve the allowed origins list and convert it to an array
+  const allowedOriginString = process.env.ALLOWED_ORIGIN;
+  const allowedOrigins = allowedOriginString ? allowedOriginString.split(',').map(s => s.trim()) : [];
+
+  // Get the origin from the request headers
+  const requestOrigin = req.headers['origin'];
+
+  // Check if the incoming request origin is in the allowed list
+  let isOriginAllowed = false;
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    isOriginAllowed = true;
+  }
+
+  // As a fallback, check the referer
+  if (!isOriginAllowed) {
+    const referer = req.headers['referer'];
+    if (referer) {
+      isOriginAllowed = allowedOrigins.some(origin => referer.startsWith(origin));
+    }
+  }
+
+  if (!isOriginAllowed) {
+    console.warn(`Blocked Telegram credentials request from unauthorized origin: ${requestOrigin || req.headers['referer']}`);
+    return res.status(403).json({ success: false, error: 'Unauthorized origin' });
+  }
+
+  // Return the credentials if origin is allowed
+  if (!process.env.TELEGRAM_CHAT_ID || !process.env.TELEGRAM_BOT_TOKEN) {
+    console.error('Missing Telegram configuration in environment variables');
+    return res.status(500).json({ success: false, error: 'Server configuration error' });
+  }
+
   res.json({
-    vpa: 'BHARATPE2S0K0E0M3O64927@unitype',
-    name: 'Mr RAJU Y BASAPUR'
+    success: true,
+    TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID,
+    TELEGRAM_ACCESS_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   });
 });
 
 // UPI redirect
-app.get('/api/pay-upi', (req, res) => {
-  const bookingId = req.query.bookingId || 'NO_BOOKING_ID';
-  const amount = parseFloat(req.query.amount).toFixed(2) || '0.00';
-  const uniqueOrderId = `BOOKING-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-  const payeeVPA = 'BHARATPE2S0K0E0M3O64927@unitype';
-  const payeeName = 'Mr RAJU Y BASAPUR';
-  const transactionNote = `Payment for ${bookingId}`;
-
-  const upiLink = `upi://pay?` +
-    `pa=${urlEncode(payeeVPA)}` +
-    `&pn=${urlEncode(payeeName)}` +
-    `&am=${amount}` +
-    `&cu=INR` +
-    `&tn=${urlEncode(transactionNote)}` +
-    `&tr=${urlEncode(uniqueOrderId)}`;
-
-  console.log(`Redirecting to: ${upiLink}`);
-  res.redirect(302, upiLink);
-});
 
 // Serve admin panel
 app.get("/admin", (req, res) => {
