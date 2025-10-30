@@ -713,7 +713,7 @@
         localStorage.setItem('adminSecret', authData.adminSecret);
         document.getElementById('authSection').style.display = 'none';
         document.getElementById('mainContent').style.display = 'block';
-        showTab('bookings'); // Default to bookings tab
+        showTab('daily'); // Default to bookings tab
       } catch (error) {
         await showModal('error', 'Login Failed', `Login failed: ${error.message}`);
         console.error('Login Error:', error);
