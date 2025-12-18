@@ -29,6 +29,33 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
+async function callWorker(endpoint, method, secretLevel, body) {
+    try {
+        const response = await fetch(WORKER_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-App-Secret': process.env.API_KEY // <--- Uses your existing key
+            },
+            body: JSON.stringify({
+                endpoint,
+                method,
+                secretLevel,
+                body
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Worker responded with ${response.status}: ${errorText}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Worker Call Failed:', error);
+        throw error;
+    }
+}
 // Store refresh tokens in memory (use a database like Redis in production)
 let refreshTokens = [];
 
@@ -315,77 +342,64 @@ app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, re
 
 // Verify Payment and Save Booking
 app.post('/verify-payment', async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingData: initialBookingData } = req.body;
-
-  // Verify signature
-  const generated_signature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-    .update(razorpay_order_id + '|' + razorpay_payment_id)
-    .digest('hex');
-
-  if (generated_signature !== razorpay_signature) {
-    return res.status(400).json({ success: false, error: 'Invalid signature' });
-  }
-
-  // --- START ID CLASH RETRY LOGIC ---
-  let currentBookingData = initialBookingData;
-  const maxRetries = 3;
-  let success = false;
-  let finalWorkerResponse;
-
-  for (let attempt = 1; attempt <= maxRetries && !success; attempt++) {
     try {
-      const workerResponse = await fetch(`${WORKER_URL}/booking/save-secure`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-App-Secret': process.env.DB_WRITE_SECRET
-        },
-        body: JSON.stringify(currentBookingData)
-      });
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            bookingData 
+        } = req.body;
 
-      const workerData = await workerResponse.json();
-      finalWorkerResponse = workerData; // Store the final response data
+        // 1. Verify Signature
+        const generated_signature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(razorpay_order_id + '|' + razorpay_payment_id)
+            .digest('hex');
 
-      if (workerResponse.status === 409 && workerData.error === 'BOOKING_ID_CLASH') {
-        // ID Clash detected. Must regenerate and retry.
-        if (attempt === maxRetries) {
-          console.error(`[FATAL CLASH] Max retries reached for ID ${currentBookingData.booking_id}.`);
-          throw new Error('Max ID regeneration retries reached. Final Worker Status 409.');
+        if (generated_signature !== razorpay_signature) {
+            return res.status(400).json({ success: false, error: 'Invalid signature' });
         }
 
-        const newBookingId = generateBookingId();
-        console.warn(`[RETRY] ID Clash for ${currentBookingData.booking_id}. Regenerating to ${newBookingId} and retrying. Attempt ${attempt}`);
+        console.log('Payment verified. Attempting to save...');
 
-        // Update the bookingData for the next iteration of the loop
-        currentBookingData = { ...initialBookingData, booking_id: newBookingId };
+        // 2. Add Payment ID to booking data
+        if (bookingData) {
+            bookingData.status = 'CONFIRMED';
+            bookingData.payment_id = razorpay_payment_id;
+        }
 
-      } else if (workerResponse.ok) {
-        // Success (Status 200, including idempotent success)
-        success = true;
+        // 3. Attempt to Save to Worker
+        let workerResponse = { success: false };
+        try {
+             workerResponse = await callWorker('/booking/save-secure', 'POST', 'write', bookingData);
+        } catch (e) {
+             console.error("Worker save crashed:", e);
+        }
 
-      } else {
-        // Worker failed with a non-409 error (e.g., 400 or 500)
-        console.error(`Worker failed with status ${workerResponse.status}: ${workerData.error || workerData.message}`);
-        // Break loop and fail immediately on non-clash error
-        throw new Error(`Worker Error: ${workerData.error || workerData.message}`);
-      }
+        // 4. SMART RESPONSE (The Fix)
+        if (workerResponse.success) {
+            // Perfect Scenario: Paid AND Saved
+            return res.json({
+                success: true,
+                saved: true,
+                message: "Payment verified and Booking saved"
+            });
+        } else {
+            // Fallback Scenario: Paid, but Save Failed
+            console.error('Payment successful, but DB save failed.');
+            return res.json({
+                success: true, // We say TRUE because money was deducted
+                saved: false,  // We flag this as NOT saved
+                payment_id: razorpay_payment_id,
+                message: "Payment received but auto-save failed"
+            });
+        }
 
     } catch (error) {
-      // Handles fetch errors, max retry errors, and non-clash worker errors
-      console.error('Booking save error during retry loop:', error.message);
-      return res.status(500).json({ success: false, error: 'Failed to save booking after retries.', details: error.message });
+        console.error('Verify Payment Error:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
-  }
-
-  if (success) {
-    // Return the successful response from the worker
-    res.json({ success: true, message: 'Payment verified and booking saved', data: finalWorkerResponse });
-  } else {
-    // Should be caught by the try/catch, but as a final safeguard
-    res.status(500).json({ success: false, error: 'Failed to save booking: Unknown error after retries.' });
-  }
 });
-// --- END ID CLASH RETRY LOGIC ---
 
 
 // Export for Vercel
