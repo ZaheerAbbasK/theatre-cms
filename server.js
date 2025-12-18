@@ -197,6 +197,7 @@ app.get('/api/telegram-credentials', (req, res) => {
 
   // Get the origin from the request headers
   const requestOrigin = req.headers['origin'];
+  
 
   // Check if the incoming request origin is in the allowed list
   let isOriginAllowed = false;
