@@ -118,8 +118,8 @@ app.post('/create-order', async (req, res) => {
 // --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
 async function sendTelegramNotification(data) {
     // 1. Credentials
-    const token = "8064961587:AAEecTCeZ6OZTKMLHSmnoItXe1NnI3djSCk"; 
-    const chatId = 7458651817;
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
 
     if (!token || !chatId) {
         console.error("Telegram credentials missing.");
@@ -446,45 +446,7 @@ app.get("/api/images", async (req, res) => {
 });
 
 // --- TEMPORARY TEST ROUTE ---
-app.get('/test-db-save', async (req, res) => {
-    // 1. Create Dummy Data
-    const dummyBooking = {
-        booking_id: "TEST-" + Math.floor(10000 + Math.random() * 90000),
-        customer_name: "Test Robot",
-        customer_phone: "9999999999",
-        customer_email: "test@beanoshub.com",
-        event_date: "01-01-2030", // Future date to avoid confusion
-        time_slot: "10:00 AM - 11:00 AM",
-        venue_name: "Debug Venue",
-        venue_address: "123 Cloudflare St",
-        venue_price: 100,
-        addon_total: 0,
-        cake_total: 0,
-        grand_total: 100,
-        status: "CONFIRMED"
-    };
 
-    try {
-        // 2. Attempt to save using the FIXED callWorker function
-        // We use 'write' permission, just like the real payment flow
-        console.log("Attempting to save test booking:", dummyBooking.booking_id);
-        
-        const result = await callWorker('/booking/save-secure', 'POST', 'write', dummyBooking);
-        
-        // 3. Output the result
-        res.json({
-            status: "Test Execution Complete",
-            worker_response: result,
-            check_db: "If 'success' is true above, check your D1 database/AppSheet for this record."
-        });
-    } catch (error) {
-        res.status(500).json({ 
-            status: "Test Failed", 
-            error: error.message,
-            stack: error.stack 
-        });
-    }
-});
 
 // Upload theatre image
 app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, res) => {
@@ -546,57 +508,42 @@ ${JSON.stringify(errorData, null, 2).slice(0, 3000)}
 }
 
 // --- ROUTE: VERIFY PAYMENT (WITH SIMULATION & LOGGING) ---
+// --- ROUTE: VERIFY PAYMENT (PRODUCTION READY) ---
 app.post('/verify-payment', async (req, res) => {
     const {
         razorpay_order_id,
         razorpay_payment_id,
         razorpay_signature,
-        bookingData,
-        // New Fields for Simulation
-        simulation_mode,
-        admin_pin
+        bookingData
     } = req.body;
 
     try {
-        let paymentId = razorpay_payment_id;
+        // 1. STRICT SECURITY CHECK
+        // We removed the simulation backdoor. Now, ONLY valid signatures pass.
+        const generated_signature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(razorpay_order_id + '|' + razorpay_payment_id)
+            .digest('hex');
 
-        // --- 1. SECURITY CHECK (Real vs Simulation) ---
-        if (simulation_mode) {
-            // BACKDOOR: Only allow if PIN matches your .env ADMINPIN
-            if (admin_pin !== process.env.ADMINPIN) {
-                console.warn("⛔ Simulation attempt failed: Wrong PIN");
-                return res.status(403).json({ success: false, error: 'Access Denied: Wrong PIN' });
-            }
-            console.log("🛠️ SIMULATION MODE ACTIVE: Skipping Payment Check");
-            paymentId = "SIM_" + Date.now(); // Fake ID
-        } else {
-            // REAL MODE: Verify Razorpay Signature
-            const generated_signature = crypto
-                .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-                .update(razorpay_order_id + '|' + razorpay_payment_id)
-                .digest('hex');
-
-            if (generated_signature !== razorpay_signature) {
-                // LOG THIS FAILURE
-                await logCriticalError("Payment Signature Verification", {
-                    received: razorpay_signature,
-                    generated: generated_signature,
-                    order_id: razorpay_order_id
-                });
-                return res.status(400).json({ success: false, error: 'Invalid signature' });
-            }
+        if (generated_signature !== razorpay_signature) {
+            // SECURITY ALERT: Log this invalid attempt
+            await logCriticalError("Security: Invalid Signature Attempt", {
+                received: razorpay_signature,
+                generated: generated_signature,
+                order_id: razorpay_order_id
+            });
+            return res.status(400).json({ success: false, error: 'Invalid signature' });
         }
 
-        console.log(`[PAYMENT] Processing for ${bookingData?.booking_id}...`);
+        console.log(`[PAYMENT] Verified for ${bookingData?.booking_id}. Processing...`);
 
-        // --- 2. ENRICH DATA ---
+        // 2. ENRICH DATA
         if (bookingData) {
             bookingData.status = 'CONFIRMED';
-            bookingData.payment_id = paymentId;
-            if (simulation_mode) bookingData.notes = "[TEST BOOKING]";
+            bookingData.payment_id = razorpay_payment_id;
         }
 
-        // --- 3. PARALLEL EXECUTION ---
+        // 3. PARALLEL EXECUTION (Save DB + Send Telegram)
         const [workerResult, telegramResult] = await Promise.allSettled([
             callWorker('/booking/save-secure', 'POST', 'write', bookingData),
             sendTelegramNotification(bookingData)
@@ -605,7 +552,7 @@ app.post('/verify-payment', async (req, res) => {
         const saveSuccess = workerResult.status === 'fulfilled' && workerResult.value.success;
         const telegramSuccess = telegramResult.status === 'fulfilled' && telegramResult.value.success;
 
-        // --- 4. FAILURE LOGGING (The "File" you wanted) ---
+        // 4. FAILURE LOGGING (Keeps your "Log File" requirement)
         let serverLog = [];
         
         if (!saveSuccess) {
@@ -613,7 +560,7 @@ app.post('/verify-payment', async (req, res) => {
             console.error("❌ DB Save Failed:", reason);
             serverLog.push(`DB Error: ${JSON.stringify(reason)}`);
             
-            // AUTO-LOG TO TELEGRAM DEBUGGER
+            // 🚨 CRITICAL LOG: Send to your Debug Group
             await logCriticalError("Database Auto-Save Failed", {
                 booking_id: bookingData.booking_id,
                 reason: reason
@@ -625,67 +572,32 @@ app.post('/verify-payment', async (req, res) => {
             console.error("❌ Telegram Notification Failed:", reason);
             serverLog.push(`Telegram Error: ${JSON.stringify(reason)}`);
             
-            // Note: If Telegram failed, logCriticalError might also fail, 
-            // but we try anyway using the hardcoded debug credentials.
+            // 🚨 CRITICAL LOG: Send to your Debug Group
             await logCriticalError("Customer Notification Failed", {
                  booking_id: bookingData.booking_id,
                  reason: reason
             });
         }
 
-        // --- 5. RESPONSE ---
+        // 5. RESPONSE
+        // We return these flags so Terms.html knows if it needs to run a backup save.
         return res.json({
             success: true,
             saved: saveSuccess,
             telegram_sent: telegramSuccess,
             debug_clues: serverLog.join(' | '),
-            is_simulation: !!simulation_mode,
-            message: simulation_mode ? "Simulation Successful" : "Payment Verified"
+            message: "Payment Verified"
         });
 
     } catch (error) {
         console.error('Verify Payment Critical Error:', error);
-        // Catch-all logger
+        // Catch-all logger for server crashes
         await logCriticalError("Critical Server Crash", { error: error.message, stack: error.stack });
         res.status(500).json({ success: false, error: error.message });
     }
 });
 // --- ROUTE: TEST FULL FLOW (RUN THIS TO TEST) ---
-app.get('/test-full-flow', async (req, res) => {
-    const dummyData = {
-        booking_id: "TEST-SYS-" + Math.floor(Math.random() * 10000),
-        customer_name: "System Tester",
-        customer_phone: "0000000000",
-        event_date: "01-01-2030",
-        time_slot: "12:00 PM - 01:00 PM",
-        venue_name: "Backend Test Venue",
-        venue_price: 100,
-        grand_total: 100,
-        payment_id: "pay_test_" + Date.now(),
-        status: "CONFIRMED"
-    };
 
-    console.log("Starting Full Flow Test...");
-
-    try {
-        // 1. Test Telegram
-        console.log("1. Testing Telegram...");
-        const telegramRes = await sendTelegramNotification(dummyData);
-
-        // 2. Test DB Save
-        console.log("2. Testing DB Save...");
-        const dbRes = await callWorker('/booking/save-secure', 'POST', 'write', dummyData);
-
-        res.json({
-            status: "Test Complete",
-            telegram_result: telegramRes,
-            database_result: dbRes,
-            message: "Check your Telegram app and your Database/AppSheet now."
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message, stack: error.stack });
-    }
-});
 
 
 // Export for Vercel
