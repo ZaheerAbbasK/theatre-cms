@@ -29,33 +29,27 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
+// --- HELPER: WORKER PROXY (FIXED) ---
 async function callWorker(endpoint, method, secretLevel, body) {
-    // 1. Select the correct secret based on the level requested
+    // 1. Select the correct secret
     let appSecret;
     switch (secretLevel) {
-        case 'read':
-            appSecret = process.env.DB_READ_SECRET;
-            break;
-        case 'write':
-            appSecret = process.env.DB_WRITE_SECRET;
-            break;
-        case 'admin':
-            appSecret = process.env.DB_ADMIN_SECRET;
-            break;
-        default:
-            throw new Error(`Invalid secret level: ${secretLevel}`);
+        case 'read': appSecret = process.env.DB_READ_SECRET; break;
+        case 'write': appSecret = process.env.DB_WRITE_SECRET; break;
+        case 'admin': appSecret = process.env.DB_ADMIN_SECRET; break;
+        default: throw new Error(`Invalid secret level: ${secretLevel}`);
     }
 
     try {
-        // 2. Fetch with the correct Secret and UNWRAPPED Body
+        // 2. Fetch with CORRECT URL + Endpoint
         const response = await fetch(WORKER_URL + endpoint, {
             method: method,
             headers: {
                 'Content-Type': 'application/json',
-                'X-App-Secret': appSecret // <--- Use the specific DB secret, not generic API_KEY
+                'X-App-Secret': appSecret
             },
-            // 3. Send 'body' directly. Do not wrap it in { endpoint, body ... }
-            body: JSON.stringify(body) 
+            // 3. Send body DIRECTLY (Fixed the "Russian Doll" bug)
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {
@@ -118,6 +112,57 @@ app.post('/create-order', async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to create order' });
   }
 });
+
+// --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
+async function sendTelegramNotification(data) {
+    const token = "8064961587:AAEecTCeZ6OZTKMLHSmnoItXe1NnI3djSCk";
+    const chatId = 7458651817;
+
+    if (!token || !chatId) {
+        console.error("Telegram credentials missing.");
+        return { success: false, error: "Credentials missing" };
+    }
+
+    // Format the message nicely
+    const message = `
+✅ *NEW PAYMENT RECEIVED*
+--------------------------------
+👤 *Customer:* ${data.customer_name || 'N/A'}
+📱 *Phone:* ${data.customer_phone || 'N/A'}
+📅 *Date:* ${data.event_date || 'N/A'}
+⏰ *Time:* ${data.time_slot || 'N/A'}
+🏛 *Venue:* ${data.venue_name || 'N/A'}
+💰 *Amount:* ₹${data.grand_total || '0'}
+💳 *Payment ID:* ${data.payment_id || 'N/A'}
+📝 *Booking ID:* ${data.booking_id || 'N/A'}
+--------------------------------
+_System: Backend Auto-Alert_
+    `;
+
+    try {
+        const url = `https://api.telegram.org/bot${token}/sendMessage`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                text: message,
+                parse_mode: 'Markdown'
+            })
+        });
+
+        const result = await response.json();
+        if (!result.ok) {
+            console.error("Telegram API Error:", result);
+        } else {
+            console.log("Telegram notification sent successfully.");
+        }
+        return result;
+    } catch (error) {
+        console.error("Failed to send Telegram message:", error);
+        return { success: false, error: error.message };
+    }
+}
 
 // Cloudflare Worker Proxy
 app.post('/api/proxy-worker', async (req, res) => {
@@ -396,6 +441,7 @@ app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, re
 });
 
 // Verify Payment and Save Booking
+// --- ROUTE: VERIFY PAYMENT (UPDATED) ---
 app.post('/verify-payment', async (req, res) => {
     try {
         const {
@@ -415,44 +461,80 @@ app.post('/verify-payment', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Invalid signature' });
         }
 
-        console.log('Payment verified. Attempting to save...');
+        console.log('Payment verified. Processing post-payment actions...');
 
-        // 2. Add Payment ID to booking data
+        // 2. Enrich Booking Data
         if (bookingData) {
             bookingData.status = 'CONFIRMED';
             bookingData.payment_id = razorpay_payment_id;
         }
 
-        // 3. Attempt to Save to Worker
-        let workerResponse = { success: false };
-        try {
-             workerResponse = await callWorker('/booking/save-secure', 'POST', 'write', bookingData);
-        } catch (e) {
-             console.error("Worker save crashed:", e);
+        // 3. PARALLEL EXECUTION: Save to DB & Send Telegram
+        // We run them together so one slow process doesn't block the other
+        const [workerResponse, telegramResponse] = await Promise.allSettled([
+            callWorker('/booking/save-secure', 'POST', 'write', bookingData),
+            sendTelegramNotification(bookingData)
+        ]);
+
+        // 4. Analyze Results
+        const saveSuccess = workerResponse.status === 'fulfilled' && workerResponse.value.success;
+        const telegramSuccess = telegramResponse.status === 'fulfilled' && telegramResponse.value.ok;
+
+        if (!saveSuccess) {
+            console.error("CRITICAL: DB Save Failed in Verify Payment", workerResponse.reason || workerResponse.value);
+            // Optional: You could send a separate "URGENT FAILURE" telegram here if you wanted
         }
 
-        // 4. SMART RESPONSE (The Fix)
-        if (workerResponse.success) {
-            // Perfect Scenario: Paid AND Saved
-            return res.json({
-                success: true,
-                saved: true,
-                message: "Payment verified and Booking saved"
-            });
-        } else {
-            // Fallback Scenario: Paid, but Save Failed
-            console.error('Payment successful, but DB save failed.');
-            return res.json({
-                success: true, // We say TRUE because money was deducted
-                saved: false,  // We flag this as NOT saved
-                payment_id: razorpay_payment_id,
-                message: "Payment received but auto-save failed"
-            });
-        }
+        // 5. Respond to Client
+        // We return success=true because the PAYMENT worked. 
+        // We include 'saved' status for debugging/logging on client if needed.
+        return res.json({
+            success: true,
+            saved: saveSuccess,
+            telegram_sent: telegramSuccess,
+            message: "Payment verified"
+        });
 
     } catch (error) {
         console.error('Verify Payment Error:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// --- ROUTE: TEST FULL FLOW (RUN THIS TO TEST) ---
+app.get('/test-full-flow', async (req, res) => {
+    const dummyData = {
+        booking_id: "TEST-SYS-" + Math.floor(Math.random() * 10000),
+        customer_name: "System Tester",
+        customer_phone: "0000000000",
+        event_date: "01-01-2030",
+        time_slot: "12:00 PM - 01:00 PM",
+        venue_name: "Backend Test Venue",
+        venue_price: 100,
+        grand_total: 100,
+        payment_id: "pay_test_" + Date.now(),
+        status: "CONFIRMED"
+    };
+
+    console.log("Starting Full Flow Test...");
+
+    try {
+        // 1. Test Telegram
+        console.log("1. Testing Telegram...");
+        const telegramRes = await sendTelegramNotification(dummyData);
+
+        // 2. Test DB Save
+        console.log("2. Testing DB Save...");
+        const dbRes = await callWorker('/booking/save-secure', 'POST', 'write', dummyData);
+
+        res.json({
+            status: "Test Complete",
+            telegram_result: telegramRes,
+            database_result: dbRes,
+            message: "Check your Telegram app and your Database/AppSheet now."
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 });
 
