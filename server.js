@@ -30,19 +30,32 @@ const razorpay = new Razorpay({
 });
 
 async function callWorker(endpoint, method, secretLevel, body) {
+    // 1. Select the correct secret based on the level requested
+    let appSecret;
+    switch (secretLevel) {
+        case 'read':
+            appSecret = process.env.DB_READ_SECRET;
+            break;
+        case 'write':
+            appSecret = process.env.DB_WRITE_SECRET;
+            break;
+        case 'admin':
+            appSecret = process.env.DB_ADMIN_SECRET;
+            break;
+        default:
+            throw new Error(`Invalid secret level: ${secretLevel}`);
+    }
+
     try {
-        const response = await fetch(WORKER_URL, {
-            method: 'POST',
+        // 2. Fetch with the correct Secret and UNWRAPPED Body
+        const response = await fetch(WORKER_URL + endpoint, {
+            method: method,
             headers: {
                 'Content-Type': 'application/json',
-                'X-App-Secret': process.env.API_KEY // <--- Uses your existing key
+                'X-App-Secret': appSecret // <--- Use the specific DB secret, not generic API_KEY
             },
-            body: JSON.stringify({
-                endpoint,
-                method,
-                secretLevel,
-                body
-            })
+            // 3. Send 'body' directly. Do not wrap it in { endpoint, body ... }
+            body: JSON.stringify(body) 
         });
 
         if (!response.ok) {
@@ -312,6 +325,47 @@ app.get("/api/images", async (req, res) => {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch images" });
   }
+});
+
+// --- TEMPORARY TEST ROUTE ---
+app.get('/test-db-save', async (req, res) => {
+    // 1. Create Dummy Data
+    const dummyBooking = {
+        booking_id: "TEST-" + Math.floor(10000 + Math.random() * 90000),
+        customer_name: "Test Robot",
+        customer_phone: "9999999999",
+        customer_email: "test@beanoshub.com",
+        event_date: "01-01-2030", // Future date to avoid confusion
+        time_slot: "10:00 AM - 11:00 AM",
+        venue_name: "Debug Venue",
+        venue_address: "123 Cloudflare St",
+        venue_price: 100,
+        addon_total: 0,
+        cake_total: 0,
+        grand_total: 100,
+        status: "CONFIRMED"
+    };
+
+    try {
+        // 2. Attempt to save using the FIXED callWorker function
+        // We use 'write' permission, just like the real payment flow
+        console.log("Attempting to save test booking:", dummyBooking.booking_id);
+        
+        const result = await callWorker('/booking/save-secure', 'POST', 'write', dummyBooking);
+        
+        // 3. Output the result
+        res.json({
+            status: "Test Execution Complete",
+            worker_response: result,
+            check_db: "If 'success' is true above, check your D1 database/AppSheet for this record."
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            status: "Test Failed", 
+            error: error.message,
+            stack: error.stack 
+        });
+    }
 });
 
 // Upload theatre image
