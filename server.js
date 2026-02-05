@@ -114,8 +114,10 @@ app.post('/create-order', async (req, res) => {
 });
 
 // --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
+// --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
 async function sendTelegramNotification(data) {
-    const token = "8064961587:AAEecTCeZ6OZTKMLHSmnoItXe1NnI3djSCk";
+    // SECURITY: Ideally use process.env here!
+    const token = "8064961587:AAEecTCeZ6OZTKMLHSmnoItXe1NnI3djSCk"; 
     const chatId = 7458651817;
 
     if (!token || !chatId) {
@@ -123,47 +125,63 @@ async function sendTelegramNotification(data) {
         return { success: false, error: "Credentials missing" };
     }
 
-    // Format the message nicely
-    const message = `
-✅ *NEW PAYMENT RECEIVED*
---------------------------------
-👤 *Customer:* ${data.customer_name || 'N/A'}
-📱 *Phone:* ${data.customer_phone || 'N/A'}
-📅 *Date:* ${data.event_date || 'N/A'}
-⏰ *Time:* ${data.time_slot || 'N/A'}
-🏛 *Venue:* ${data.venue_name || 'N/A'}
-💰 *Amount:* ₹${data.grand_total || '0'}
-💳 *Payment ID:* ${data.payment_id || 'N/A'}
-📝 *Booking ID:* ${data.booking_id || 'N/A'}
---------------------------------
-_System: Backend Auto-Alert_
-    `;
+    // Construct the "Smart" Pricing Section
+    // (Only shows Add-ons/Cakes lines if value is greater than 0)
+    let pricingSection = `* Venue: ₹${data.venue_price || 0}\n`;
+    if (data.addon_total > 0) pricingSection += `* Add-ons: ₹${data.addon_total}\n`;
+    if (data.cake_total > 0) pricingSection += `* Cakes: ₹${data.cake_total}\n`;
+    pricingSection += `* TOTAL: ₹${data.grand_total || 0}`;
+
+    // Format the message exactly as requested
+    const message = `🎬 NEW BOOKING ORDER
+
+📋 Booking ID: ${data.booking_id || 'N/A'}
+👤 Customer: ${data.customer_name || 'N/A'}
+📱 Phone: ${data.customer_phone || 'N/A'}
+📧 Email: ${data.customer_email || 'N/A'}
+
+🎭 Venue: ${data.venue_name || 'N/A'}
+📍 Address: ${data.venue_address || 'N/A'}
+📅 Date: ${data.event_date || 'N/A'}
+⏰ Time: ${data.time_slot || 'N/A'}
+🎊 Occasion: ${data.occasion_type || 'N/A'}
+
+📝 Occasion Details:
+${data.occasion_details || 'None'}
+
+💰 PRICING BREAKDOWN:
+${pricingSection}
+
+⏳ Status: ${data.status || 'CONFIRMED'}
+
+#BookingConfirmed #BeanosHub`;
 
     try {
         const url = `https://api.telegram.org/bot${token}/sendMessage`;
+        // We removed 'parse_mode' to allow plain text with emojis to send safely
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_id: chatId,
-                text: message,
-                parse_mode: 'Markdown'
+                text: message
             })
         });
 
         const result = await response.json();
+        
         if (!result.ok) {
             console.error("Telegram API Error:", result);
+            return { success: false, error: result.description };
         } else {
             console.log("Telegram notification sent successfully.");
+            return { success: true, result };
         }
-        return result;
     } catch (error) {
         console.error("Failed to send Telegram message:", error);
         return { success: false, error: error.message };
     }
 }
-
 // Cloudflare Worker Proxy
 app.post('/api/proxy-worker', async (req, res) => {
 
