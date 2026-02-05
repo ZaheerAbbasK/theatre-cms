@@ -515,65 +515,141 @@ app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, re
 
 // Verify Payment and Save Booking
 // --- ROUTE: VERIFY PAYMENT (UPDATED) ---
-app.post('/verify-payment', async (req, res) => {
+// --- ROUTE: VERIFY PAYMENT (PRODUCTION READY) ---
+// --- HELPER: CRASH REPORTER (The "Log File") ---
+async function logCriticalError(context, errorData) {
+    // Uses your Debug Group credentials
+    const token = "8064961587:AAEecTCeZ6OZTKMLHSmnoItXe1NnI3djSCk"; 
+    const chatId = "7458651817"; 
+
+    const logMessage = `
+🚨 SYSTEM FAILURE LOG
+---------------------
+📍 Context: ${context}
+⏰ Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+❌ Error: ${errorData.message || 'Unknown Error'}
+
+🔍 DEBUG TRACE:
+${JSON.stringify(errorData, null, 2).slice(0, 3000)} 
+`;
+// Slices to 3000 chars to fit Telegram limit
+
     try {
-        const {
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature,
-            bookingData 
-        } = req.body;
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: logMessage })
+        });
+    } catch (e) {
+        console.error("Failed to send crash report:", e);
+    }
+}
 
-        // 1. Verify Signature
-        const generated_signature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(razorpay_order_id + '|' + razorpay_payment_id)
-            .digest('hex');
+// --- ROUTE: VERIFY PAYMENT (WITH SIMULATION & LOGGING) ---
+app.post('/verify-payment', async (req, res) => {
+    const {
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        bookingData,
+        // New Fields for Simulation
+        simulation_mode,
+        admin_pin
+    } = req.body;
 
-        if (generated_signature !== razorpay_signature) {
-            return res.status(400).json({ success: false, error: 'Invalid signature' });
+    try {
+        let paymentId = razorpay_payment_id;
+
+        // --- 1. SECURITY CHECK (Real vs Simulation) ---
+        if (simulation_mode) {
+            // BACKDOOR: Only allow if PIN matches your .env ADMINPIN
+            if (admin_pin !== process.env.ADMINPIN) {
+                console.warn("⛔ Simulation attempt failed: Wrong PIN");
+                return res.status(403).json({ success: false, error: 'Access Denied: Wrong PIN' });
+            }
+            console.log("🛠️ SIMULATION MODE ACTIVE: Skipping Payment Check");
+            paymentId = "SIM_" + Date.now(); // Fake ID
+        } else {
+            // REAL MODE: Verify Razorpay Signature
+            const generated_signature = crypto
+                .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+                .update(razorpay_order_id + '|' + razorpay_payment_id)
+                .digest('hex');
+
+            if (generated_signature !== razorpay_signature) {
+                // LOG THIS FAILURE
+                await logCriticalError("Payment Signature Verification", {
+                    received: razorpay_signature,
+                    generated: generated_signature,
+                    order_id: razorpay_order_id
+                });
+                return res.status(400).json({ success: false, error: 'Invalid signature' });
+            }
         }
 
-        console.log('Payment verified. Processing post-payment actions...');
+        console.log(`[PAYMENT] Processing for ${bookingData?.booking_id}...`);
 
-        // 2. Enrich Booking Data
+        // --- 2. ENRICH DATA ---
         if (bookingData) {
             bookingData.status = 'CONFIRMED';
-            bookingData.payment_id = razorpay_payment_id;
+            bookingData.payment_id = paymentId;
+            if (simulation_mode) bookingData.notes = "[TEST BOOKING]";
         }
 
-        // 3. PARALLEL EXECUTION: Save to DB & Send Telegram
-        // We run them together so one slow process doesn't block the other
-        const [workerResponse, telegramResponse] = await Promise.allSettled([
+        // --- 3. PARALLEL EXECUTION ---
+        const [workerResult, telegramResult] = await Promise.allSettled([
             callWorker('/booking/save-secure', 'POST', 'write', bookingData),
             sendTelegramNotification(bookingData)
         ]);
 
-        // 4. Analyze Results
-        const saveSuccess = workerResponse.status === 'fulfilled' && workerResponse.value.success;
-        const telegramSuccess = telegramResponse.status === 'fulfilled' && telegramResponse.value.ok;
+        const saveSuccess = workerResult.status === 'fulfilled' && workerResult.value.success;
+        const telegramSuccess = telegramResult.status === 'fulfilled' && telegramResult.value.success;
 
+        // --- 4. FAILURE LOGGING (The "File" you wanted) ---
+        let serverLog = [];
+        
         if (!saveSuccess) {
-            console.error("CRITICAL: DB Save Failed in Verify Payment", workerResponse.reason || workerResponse.value);
-            // Optional: You could send a separate "URGENT FAILURE" telegram here if you wanted
+            const reason = workerResult.status === 'rejected' ? workerResult.reason : workerResult.value;
+            console.error("❌ DB Save Failed:", reason);
+            serverLog.push(`DB Error: ${JSON.stringify(reason)}`);
+            
+            // AUTO-LOG TO TELEGRAM DEBUGGER
+            await logCriticalError("Database Auto-Save Failed", {
+                booking_id: bookingData.booking_id,
+                reason: reason
+            });
         }
 
-        // 5. Respond to Client
-        // We return success=true because the PAYMENT worked. 
-        // We include 'saved' status for debugging/logging on client if needed.
+        if (!telegramSuccess) {
+            const reason = telegramResult.status === 'rejected' ? telegramResult.reason : telegramResult.value;
+            console.error("❌ Telegram Notification Failed:", reason);
+            serverLog.push(`Telegram Error: ${JSON.stringify(reason)}`);
+            
+            // Note: If Telegram failed, logCriticalError might also fail, 
+            // but we try anyway using the hardcoded debug credentials.
+            await logCriticalError("Customer Notification Failed", {
+                 booking_id: bookingData.booking_id,
+                 reason: reason
+            });
+        }
+
+        // --- 5. RESPONSE ---
         return res.json({
             success: true,
             saved: saveSuccess,
             telegram_sent: telegramSuccess,
-            message: "Payment verified"
+            debug_clues: serverLog.join(' | '),
+            is_simulation: !!simulation_mode,
+            message: simulation_mode ? "Simulation Successful" : "Payment Verified"
         });
 
     } catch (error) {
-        console.error('Verify Payment Error:', error);
+        console.error('Verify Payment Critical Error:', error);
+        // Catch-all logger
+        await logCriticalError("Critical Server Crash", { error: error.message, stack: error.stack });
         res.status(500).json({ success: false, error: error.message });
     }
 });
-
 // --- ROUTE: TEST FULL FLOW (RUN THIS TO TEST) ---
 app.get('/test-full-flow', async (req, res) => {
     const dummyData = {
