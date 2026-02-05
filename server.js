@@ -115,8 +115,9 @@ app.post('/create-order', async (req, res) => {
 
 // --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
 // --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
+// --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
 async function sendTelegramNotification(data) {
-    // SECURITY: Ideally use process.env here!
+    // 1. Credentials
     const token = "8064961587:AAEecTCeZ6OZTKMLHSmnoItXe1NnI3djSCk"; 
     const chatId = 7458651817;
 
@@ -125,19 +126,71 @@ async function sendTelegramNotification(data) {
         return { success: false, error: "Credentials missing" };
     }
 
-    // Construct the "Smart" Pricing Section
-    // (Only shows Add-ons/Cakes lines if value is greater than 0)
-    let pricingSection = `* Venue: ₹${data.venue_price || 0}\n`;
-    if (data.addon_total > 0) pricingSection += `* Add-ons: ₹${data.addon_total}\n`;
-    if (data.cake_total > 0) pricingSection += `* Cakes: ₹${data.cake_total}\n`;
-    pricingSection += `* TOTAL: ₹${data.grand_total || 0}`;
+    // 2. Helper to get numeric price safely
+    const getPrice = (p) => {
+        if (!p) return 0;
+        return Number(p.toString().replace(/[^0-9.]/g, '')) || 0;
+    };
 
-    // Format the message exactly as requested
+    // 3. Build CAKES Block
+    let cakesBlock = '';
+    if (data.selectedCakes) {
+        let cakeLines = [];
+        // Handle if it's an Object (common in your app) or Array
+        const cakes = Array.isArray(data.selectedCakes) 
+            ? data.selectedCakes 
+            : Object.values(data.selectedCakes);
+
+        cakeLines = cakes
+            .filter(c => c && c.name)
+            .map(c => {
+                const price = getPrice(c.price);
+                const qty = parseInt(c.quantity) || 1;
+                return `* 🎂 ${c.name} × ${qty} = ₹${price * qty}`;
+            });
+
+        if (cakeLines.length > 0) {
+            cakesBlock = `\n🍰 CAKES:\n${cakeLines.join('\n')}`;
+        }
+    }
+
+    // 4. Build ADD-ONS Block
+    let addonLines = [];
+    if (data.selectedAddons) {
+        const addons = Array.isArray(data.selectedAddons)
+            ? data.selectedAddons
+            : Object.values(data.selectedAddons);
+
+        addons.forEach(a => {
+            if (a && (a.title || a.name)) {
+                const name = a.title || a.name;
+                const price = getPrice(a.price);
+                const qty = parseInt(a.quantity) || 1;
+                addonLines.push(`* ${name} × ${qty} = ₹${price * qty}`);
+            }
+        });
+    }
+
+    // Handle Custom Decorations (if separate)
+    if (data.customDecorations) {
+        const decorPrice = getPrice(data.customDecorationsPrice);
+        if (decorPrice > 0) {
+            addonLines.push(`* 🎀 Custom Decorations (${data.customDecorations}) = ₹${decorPrice}`);
+        }
+    }
+
+    let addonsBlock = '';
+    if (addonLines.length > 0) {
+        addonsBlock = `\n🎨 ADD-ONS:\n${addonLines.join('\n')}`;
+    }
+
+    // 5. Construct the Message
+    // Note: We use data.venue_price, etc. matching your D1 record fields
     const message = `🎬 NEW BOOKING ORDER
 
 📋 Booking ID: ${data.booking_id || 'N/A'}
 👤 Customer: ${data.customer_name || 'N/A'}
-📱 Phone: ${data.customer_phone || 'N/A'}
+📱 Phone: +91 ${data.customer_phone || 'N/A'}
 📧 Email: ${data.customer_email || 'N/A'}
 
 🎭 Venue: ${data.venue_name || 'N/A'}
@@ -147,18 +200,23 @@ async function sendTelegramNotification(data) {
 🎊 Occasion: ${data.occasion_type || 'N/A'}
 
 📝 Occasion Details:
-${data.occasion_details || 'None'}
+${data.occasion_details || 'N/A'}
+${cakesBlock}
+${addonsBlock}
 
 💰 PRICING BREAKDOWN:
-${pricingSection}
+* Venue: ₹${data.venue_price || 0}
+* Add-ons: ₹${data.addon_total || 0}
+* Cakes: ₹${data.cake_total || 0}
+* TOTAL: ₹${data.grand_total || 0}
 
 ⏳ Status: ${data.status || 'CONFIRMED'}
 
 #BookingConfirmed #BeanosHub`;
 
+    // 6. Send Request
     try {
         const url = `https://api.telegram.org/bot${token}/sendMessage`;
-        // We removed 'parse_mode' to allow plain text with emojis to send safely
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -169,14 +227,11 @@ ${pricingSection}
         });
 
         const result = await response.json();
-        
         if (!result.ok) {
             console.error("Telegram API Error:", result);
             return { success: false, error: result.description };
-        } else {
-            console.log("Telegram notification sent successfully.");
-            return { success: true, result };
-        }
+        } 
+        return { success: true, result };
     } catch (error) {
         console.error("Failed to send Telegram message:", error);
         return { success: false, error: error.message };
