@@ -598,7 +598,63 @@ app.post('/verify-payment', async (req, res) => {
 });
 // --- ROUTE: TEST FULL FLOW (RUN THIS TO TEST) ---
 
+// --- ROUTE: CHECK PAYMENT STATUS (ADMIN TOOL) ---
+app.post('/api/check-razorpay-status', async (req, res) => {
+    const { booking_id } = req.body;
 
+    if (!booking_id) {
+        return res.status(400).json({ success: false, error: "Booking ID is required" });
+    }
+
+    try {
+        // 1. Ask Razorpay: "Do you have any order with receipt = booking_id?"
+        const orders = await razorpay.orders.all({
+            receipt: booking_id,
+            count: 5 // Fetch top 5 matches just in case
+        });
+
+        if (orders.count === 0) {
+            return res.json({ 
+                success: true, 
+                found: false, 
+                message: "No Razorpay order found for this Booking ID." 
+            });
+        }
+
+        // 2. Analyze the Order(s)
+        // Usually there's only one, but we check the most recent one.
+        const order = orders.items[0];
+
+        // 3. Check if it is actually PAID
+        const isPaid = order.status === 'paid' || order.amount_paid >= order.amount;
+
+        // 4. Fetch the specific Payment ID if paid
+        let paymentDetails = null;
+        if (isPaid) {
+            // Fetch payments linked to this order to get the "pay_xxx" ID
+            const payments = await razorpay.orders.fetchPayments(order.id);
+            if (payments.count > 0) {
+                paymentDetails = payments.items[0]; // Get the first successful payment
+            }
+        }
+
+        return res.json({
+            success: true,
+            found: true,
+            status: order.status, // 'created', 'attempted', 'paid'
+            amount_due: order.amount_due / 100,
+            amount_paid: order.amount_paid / 100,
+            currency: order.currency,
+            order_id: order.id,
+            payment_id: paymentDetails ? paymentDetails.id : "Not Found",
+            created_at: new Date(order.created_at * 1000).toLocaleString('en-IN')
+        });
+
+    } catch (error) {
+        console.error("Razorpay Check Error:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 // Export for Vercel
 module.exports = app;
