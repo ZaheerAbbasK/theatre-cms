@@ -98,12 +98,33 @@ const verifyToken = (req, res, next) => {
 };
 
 app.post('/create-order', async (req, res) => {
-  const { amount, bookingId } = req.body; // Amount in rupees, convert to paise
+  const { amount, bookingId, bookingData } = req.body;
   try {
+    // Embed key booking fields in Razorpay order notes.
+    // These survive any mobile redirect and are readable in /payment-callback.
+    const notes = {};
+    if (bookingData) {
+      const s = (v) => String(v || '').substring(0, 256); // Razorpay: max 256 chars per value
+      notes.bk_id = s(bookingData.booking_id || bookingId);
+      notes.name  = s(bookingData.customer_name);
+      notes.phone = s(bookingData.customer_phone);
+      notes.email = s(bookingData.customer_email);
+      notes.venue = s(bookingData.venue_name);
+      notes.addr  = s(bookingData.venue_address);
+      notes.date  = s(bookingData.event_date);
+      notes.slot  = s(bookingData.time_slot);
+      notes.occ   = s(bookingData.occasion_type);
+      notes.total = s(bookingData.grand_total);
+      notes.vp    = s(bookingData.venue_price);
+      notes.at    = s(bookingData.addon_total);
+      notes.ct    = s(bookingData.cake_total);
+    }
+
     const options = {
       amount: amount * 100, // Convert to paise
       currency: 'INR',
-      receipt: bookingId || `receipt_${Date.now()}`
+      receipt: bookingId || `receipt_${Date.now()}`,
+      notes
     };
     const order = await razorpay.orders.create(options);
     res.json({ success: true, order });
@@ -596,6 +617,105 @@ app.post('/verify-payment', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+// --- ROUTE: UPI CALLBACK (Mobile UPI Redirect Recovery) ---
+// Razorpay fires this via POST redirect when the customer pays via a UPI app
+// (PhonePe, GPay, Paytm, etc.) and the browser JS handler context was killed.
+// This is the safety net for all mobile UPI payments.
+app.post('/payment-callback', async (req, res) => {
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+    // Redirect back to Terms.html so the existing success/error modal shows seamlessly.
+    // Terms.html intercepts ?payment= params at DOMContentLoaded before any other logic.
+    const TERMS_URL = 'https://www.beanoshub.com/Terms.html';
+
+    try {
+        // 1. Verify signature — same check as /verify-payment
+        const generated_signature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(razorpay_order_id + '|' + razorpay_payment_id)
+            .digest('hex');
+
+        if (generated_signature !== razorpay_signature) {
+            await logCriticalError('payment-callback: Invalid Signature', {
+                razorpay_order_id, razorpay_payment_id
+            });
+            return res.redirect(`${TERMS_URL}?payment=failed&reason=signature`);
+        }
+
+        // 2. Fetch Razorpay order to retrieve the booking notes we stored at create-order
+        const order = await razorpay.orders.fetch(razorpay_order_id);
+        const notes = order.notes || {};
+        const bookingId = notes.bk_id || order.receipt || `UPI-${Date.now()}`;
+
+        console.log(`[CALLBACK] UPI payment verified for booking: ${bookingId}`);
+
+        // 3. Reconstruct booking record from notes
+        const bookingRecord = {
+            booking_id:       bookingId,
+            booking_time:     new Date().toISOString(),
+            event_date:       notes.date  || '',
+            time_slot:        notes.slot  || '',
+            venue_name:       notes.venue || '',
+            venue_address:    notes.addr  || '',
+            customer_name:    notes.name  || '',
+            customer_phone:   notes.phone || '',
+            customer_email:   notes.email || '',
+            occasion_type:    notes.occ   || '',
+            occasion_details: '',
+            items_ordered:    '',
+            venue_price:      Number(notes.vp    || 0),
+            addon_total:      Number(notes.at    || 0),
+            cake_total:       Number(notes.ct    || 0),
+            grand_total:      Number(notes.total || order.amount / 100),
+            status:           'CONFIRMED',
+            payment_id:       razorpay_payment_id,
+            created_at:       new Date().toISOString()
+        };
+
+        // 4. Save to DB + Send Telegram in parallel
+        // Worker idempotency check handles any double-saves gracefully.
+        const [workerResult, telegramResult] = await Promise.allSettled([
+            callWorker('/booking/save-secure', 'POST', 'write', bookingRecord),
+            sendTelegramNotification(bookingRecord)
+        ]);
+
+        const saveSuccess     = workerResult.status === 'fulfilled' && workerResult.value?.success;
+        const telegramSuccess = telegramResult.status === 'fulfilled' && telegramResult.value?.success;
+
+        if (!saveSuccess) {
+            const reason = workerResult.reason || workerResult.value;
+            console.error('[CALLBACK] DB save failed:', reason);
+            await logCriticalError('payment-callback: DB Save Failed', { booking_id: bookingId, reason });
+        }
+
+        if (!telegramSuccess) {
+            const reason = telegramResult.reason || telegramResult.value;
+            console.error('[CALLBACK] Telegram failed:', reason);
+            await logCriticalError('payment-callback: Telegram Failed', { booking_id: bookingId, reason });
+        }
+
+        console.log(`[CALLBACK] Done — saved: ${saveSuccess}, telegram: ${telegramSuccess}`);
+
+        // 5. Redirect customer back to Terms.html — the UPI intercept block shows the success modal.
+        const successParams = new URLSearchParams({
+            payment: 'confirmed',
+            id:      bookingRecord.booking_id,
+            venue:   bookingRecord.venue_name,
+            addr:    bookingRecord.venue_address,
+            date:    bookingRecord.event_date,
+            total:   String(bookingRecord.grand_total)
+        });
+        return res.redirect(`${TERMS_URL}?${successParams.toString()}`);
+
+    } catch (error) {
+        console.error('[CALLBACK] Critical error:', error);
+        await logCriticalError('payment-callback: Critical Crash', {
+            error: error.message, stack: error.stack
+        });
+        return res.redirect(`${TERMS_URL}?payment=error`);
+    }
+});
+
 // --- ROUTE: TEST FULL FLOW (RUN THIS TO TEST) ---
 
 // --- ROUTE: CHECK PAYMENT STATUS (ADMIN TOOL) ---
