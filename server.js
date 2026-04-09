@@ -31,37 +31,37 @@ const razorpay = new Razorpay({
 
 // --- HELPER: WORKER PROXY (FIXED) ---
 async function callWorker(endpoint, method, secretLevel, body) {
-    // 1. Select the correct secret
-    let appSecret;
-    switch (secretLevel) {
-        case 'read': appSecret = process.env.DB_READ_SECRET; break;
-        case 'write': appSecret = process.env.DB_WRITE_SECRET; break;
-        case 'admin': appSecret = process.env.DB_ADMIN_SECRET; break;
-        default: throw new Error(`Invalid secret level: ${secretLevel}`);
+  // 1. Select the correct secret
+  let appSecret;
+  switch (secretLevel) {
+    case 'read': appSecret = process.env.DB_READ_SECRET; break;
+    case 'write': appSecret = process.env.DB_WRITE_SECRET; break;
+    case 'admin': appSecret = process.env.DB_ADMIN_SECRET; break;
+    default: throw new Error(`Invalid secret level: ${secretLevel}`);
+  }
+
+  try {
+    // 2. Fetch with CORRECT URL + Endpoint
+    const response = await fetch(WORKER_URL + endpoint, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Secret': appSecret
+      },
+      // 3. Send body DIRECTLY (Fixed the "Russian Doll" bug)
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Worker responded with ${response.status}: ${errorText}`);
     }
 
-    try {
-        // 2. Fetch with CORRECT URL + Endpoint
-        const response = await fetch(WORKER_URL + endpoint, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-App-Secret': appSecret
-            },
-            // 3. Send body DIRECTLY (Fixed the "Russian Doll" bug)
-            body: JSON.stringify(body)
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Worker responded with ${response.status}: ${errorText}`);
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error('Worker Call Failed:', error);
-        throw error;
-    }
+    return await response.json();
+  } catch (error) {
+    console.error('Worker Call Failed:', error);
+    throw error;
+  }
 }
 // Store refresh tokens in memory (use a database like Redis in production)
 let refreshTokens = [];
@@ -106,18 +106,18 @@ app.post('/create-order', async (req, res) => {
     if (bookingData) {
       const s = (v) => String(v || '').substring(0, 256); // Razorpay: max 256 chars per value
       notes.bk_id = s(bookingData.booking_id || bookingId);
-      notes.name  = s(bookingData.customer_name);
+      notes.name = s(bookingData.customer_name);
       notes.phone = s(bookingData.customer_phone);
       notes.email = s(bookingData.customer_email);
       notes.venue = s(bookingData.venue_name);
-      notes.addr  = s(bookingData.venue_address);
-      notes.date  = s(bookingData.event_date);
-      notes.slot  = s(bookingData.time_slot);
-      notes.occ   = s(bookingData.occasion_type);
+      notes.addr = s(bookingData.venue_address);
+      notes.date = s(bookingData.event_date);
+      notes.slot = s(bookingData.time_slot);
+      notes.occ = s(bookingData.occasion_type);
       notes.total = s(bookingData.grand_total);
-      notes.vp    = s(bookingData.venue_price);
-      notes.at    = s(bookingData.addon_total);
-      notes.ct    = s(bookingData.cake_total);
+      notes.vp = s(bookingData.venue_price);
+      notes.at = s(bookingData.addon_total);
+      notes.ct = s(bookingData.cake_total);
     }
 
     const options = {
@@ -138,76 +138,76 @@ app.post('/create-order', async (req, res) => {
 // --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
 // --- HELPER: SERVER-SIDE TELEGRAM NOTIFICATION ---
 async function sendTelegramNotification(data) {
-    // 1. Credentials
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+  // 1. Credentials
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    if (!token || !chatId) {
-        console.error("Telegram credentials missing.");
-        return { success: false, error: "Credentials missing" };
+  if (!token || !chatId) {
+    console.error("Telegram credentials missing.");
+    return { success: false, error: "Credentials missing" };
+  }
+
+  // 2. Helper to get numeric price safely
+  const getPrice = (p) => {
+    if (!p) return 0;
+    return Number(p.toString().replace(/[^0-9.]/g, '')) || 0;
+  };
+
+  // 3. Build CAKES Block
+  let cakesBlock = '';
+  if (data.selectedCakes) {
+    let cakeLines = [];
+    // Handle if it's an Object (common in your app) or Array
+    const cakes = Array.isArray(data.selectedCakes)
+      ? data.selectedCakes
+      : Object.values(data.selectedCakes);
+
+    cakeLines = cakes
+      .filter(c => c && c.name)
+      .map(c => {
+        const price = getPrice(c.price);
+        const qty = parseInt(c.quantity) || 1;
+        return `* 🎂 ${c.name} × ${qty} = ₹${price * qty}`;
+      });
+
+    if (cakeLines.length > 0) {
+      cakesBlock = `\n🍰 CAKES:\n${cakeLines.join('\n')}`;
     }
+  }
 
-    // 2. Helper to get numeric price safely
-    const getPrice = (p) => {
-        if (!p) return 0;
-        return Number(p.toString().replace(/[^0-9.]/g, '')) || 0;
-    };
+  // 4. Build ADD-ONS Block
+  let addonLines = [];
+  if (data.selectedAddons) {
+    const addons = Array.isArray(data.selectedAddons)
+      ? data.selectedAddons
+      : Object.values(data.selectedAddons);
 
-    // 3. Build CAKES Block
-    let cakesBlock = '';
-    if (data.selectedCakes) {
-        let cakeLines = [];
-        // Handle if it's an Object (common in your app) or Array
-        const cakes = Array.isArray(data.selectedCakes) 
-            ? data.selectedCakes 
-            : Object.values(data.selectedCakes);
+    addons.forEach(a => {
+      if (a && (a.title || a.name)) {
+        const name = a.title || a.name;
+        const price = getPrice(a.price);
+        const qty = parseInt(a.quantity) || 1;
+        addonLines.push(`* ${name} × ${qty} = ₹${price * qty}`);
+      }
+    });
+  }
 
-        cakeLines = cakes
-            .filter(c => c && c.name)
-            .map(c => {
-                const price = getPrice(c.price);
-                const qty = parseInt(c.quantity) || 1;
-                return `* 🎂 ${c.name} × ${qty} = ₹${price * qty}`;
-            });
-
-        if (cakeLines.length > 0) {
-            cakesBlock = `\n🍰 CAKES:\n${cakeLines.join('\n')}`;
-        }
+  // Handle Custom Decorations (if separate)
+  if (data.customDecorations) {
+    const decorPrice = getPrice(data.customDecorationsPrice);
+    if (decorPrice > 0) {
+      addonLines.push(`* 🎀 Custom Decorations (${data.customDecorations}) = ₹${decorPrice}`);
     }
+  }
 
-    // 4. Build ADD-ONS Block
-    let addonLines = [];
-    if (data.selectedAddons) {
-        const addons = Array.isArray(data.selectedAddons)
-            ? data.selectedAddons
-            : Object.values(data.selectedAddons);
+  let addonsBlock = '';
+  if (addonLines.length > 0) {
+    addonsBlock = `\n🎨 ADD-ONS:\n${addonLines.join('\n')}`;
+  }
 
-        addons.forEach(a => {
-            if (a && (a.title || a.name)) {
-                const name = a.title || a.name;
-                const price = getPrice(a.price);
-                const qty = parseInt(a.quantity) || 1;
-                addonLines.push(`* ${name} × ${qty} = ₹${price * qty}`);
-            }
-        });
-    }
-
-    // Handle Custom Decorations (if separate)
-    if (data.customDecorations) {
-        const decorPrice = getPrice(data.customDecorationsPrice);
-        if (decorPrice > 0) {
-            addonLines.push(`* 🎀 Custom Decorations (${data.customDecorations}) = ₹${decorPrice}`);
-        }
-    }
-
-    let addonsBlock = '';
-    if (addonLines.length > 0) {
-        addonsBlock = `\n🎨 ADD-ONS:\n${addonLines.join('\n')}`;
-    }
-
-    // 5. Construct the Message
-    // Note: We use data.venue_price, etc. matching your D1 record fields
-    const message = `🎬 NEW BOOKING ORDER
+  // 5. Construct the Message
+  // Note: We use data.venue_price, etc. matching your D1 record fields
+  const message = `🎬 NEW BOOKING ORDER
 
 📋 Booking ID: ${data.booking_id || 'N/A'}
 👤 Customer: ${data.customer_name || 'N/A'}
@@ -235,28 +235,28 @@ ${addonsBlock}
 
 #BookingConfirmed #BeanosHub`;
 
-    // 6. Send Request
-    try {
-        const url = `https://api.telegram.org/bot${token}/sendMessage`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: chatId,
-                text: message
-            })
-        });
+  // 6. Send Request
+  try {
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message
+      })
+    });
 
-        const result = await response.json();
-        if (!result.ok) {
-            console.error("Telegram API Error:", result);
-            return { success: false, error: result.description };
-        } 
-        return { success: true, result };
-    } catch (error) {
-        console.error("Failed to send Telegram message:", error);
-        return { success: false, error: error.message };
+    const result = await response.json();
+    if (!result.ok) {
+      console.error("Telegram API Error:", result);
+      return { success: false, error: result.description };
     }
+    return { success: true, result };
+  } catch (error) {
+    console.error("Failed to send Telegram message:", error);
+    return { success: false, error: error.message };
+  }
 }
 // Cloudflare Worker Proxy
 app.post('/api/proxy-worker', async (req, res) => {
@@ -349,7 +349,7 @@ app.get('/api/telegram-credentials', (req, res) => {
 
   // Get the origin from the request headers
   const requestOrigin = req.headers['origin'];
-  
+
 
   // Check if the incoming request origin is in the allowed list
   let isOriginAllowed = false;
@@ -501,11 +501,11 @@ app.post("/upload/:theatre", verifyToken, upload.single("image"), async (req, re
 // --- ROUTE: VERIFY PAYMENT (PRODUCTION READY) ---
 // --- HELPER: CRASH REPORTER (The "Log File") ---
 async function logCriticalError(context, errorData) {
-    // Uses your Debug Group credentials
-    const token = "8064961587:AAEecTCeZ6OZTKMLHSmnoItXe1NnI3djSCk"; 
-    const chatId = "7458651817"; 
+  // Uses your Debug Group credentials
+  const token = "8064961587:AAEecTCeZ6OZTKMLHSmnoItXe1NnI3djSCk";
+  const chatId = "7458651817";
 
-    const logMessage = `
+  const logMessage = `
 🚨 SYSTEM FAILURE LOG
 ---------------------
 📍 Context: ${context}
@@ -515,107 +515,107 @@ async function logCriticalError(context, errorData) {
 🔍 DEBUG TRACE:
 ${JSON.stringify(errorData, null, 2).slice(0, 3000)} 
 `;
-// Slices to 3000 chars to fit Telegram limit
+  // Slices to 3000 chars to fit Telegram limit
 
-    try {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: logMessage })
-        });
-    } catch (e) {
-        console.error("Failed to send crash report:", e);
-    }
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: logMessage })
+    });
+  } catch (e) {
+    console.error("Failed to send crash report:", e);
+  }
 }
 
 // --- ROUTE: VERIFY PAYMENT (WITH SIMULATION & LOGGING) ---
 // --- ROUTE: VERIFY PAYMENT (PRODUCTION READY) ---
 app.post('/verify-payment', async (req, res) => {
-    const {
-        razorpay_order_id,
-        razorpay_payment_id,
-        razorpay_signature,
-        bookingData
-    } = req.body;
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    bookingData
+  } = req.body;
 
-    try {
-        // 1. STRICT SECURITY CHECK
-        // We removed the simulation backdoor. Now, ONLY valid signatures pass.
-        const generated_signature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(razorpay_order_id + '|' + razorpay_payment_id)
-            .digest('hex');
+  try {
+    // 1. STRICT SECURITY CHECK
+    // We removed the simulation backdoor. Now, ONLY valid signatures pass.
+    const generated_signature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(razorpay_order_id + '|' + razorpay_payment_id)
+      .digest('hex');
 
-        if (generated_signature !== razorpay_signature) {
-            // SECURITY ALERT: Log this invalid attempt
-            await logCriticalError("Security: Invalid Signature Attempt", {
-                received: razorpay_signature,
-                generated: generated_signature,
-                order_id: razorpay_order_id
-            });
-            return res.status(400).json({ success: false, error: 'Invalid signature' });
-        }
-
-        console.log(`[PAYMENT] Verified for ${bookingData?.booking_id}. Processing...`);
-
-        // 2. ENRICH DATA
-        if (bookingData) {
-            bookingData.status = 'CONFIRMED';
-            bookingData.payment_id = razorpay_payment_id;
-        }
-
-        // 3. PARALLEL EXECUTION (Save DB + Send Telegram)
-        const [workerResult, telegramResult] = await Promise.allSettled([
-            callWorker('/booking/save-secure', 'POST', 'write', bookingData),
-            sendTelegramNotification(bookingData)
-        ]);
-
-        const saveSuccess = workerResult.status === 'fulfilled' && workerResult.value.success;
-        const telegramSuccess = telegramResult.status === 'fulfilled' && telegramResult.value.success;
-
-        // 4. FAILURE LOGGING (Keeps your "Log File" requirement)
-        let serverLog = [];
-        
-        if (!saveSuccess) {
-            const reason = workerResult.status === 'rejected' ? workerResult.reason : workerResult.value;
-            console.error("❌ DB Save Failed:", reason);
-            serverLog.push(`DB Error: ${JSON.stringify(reason)}`);
-            
-            // 🚨 CRITICAL LOG: Send to your Debug Group
-            await logCriticalError("Database Auto-Save Failed", {
-                booking_id: bookingData.booking_id,
-                reason: reason
-            });
-        }
-
-        if (!telegramSuccess) {
-            const reason = telegramResult.status === 'rejected' ? telegramResult.reason : telegramResult.value;
-            console.error("❌ Telegram Notification Failed:", reason);
-            serverLog.push(`Telegram Error: ${JSON.stringify(reason)}`);
-            
-            // 🚨 CRITICAL LOG: Send to your Debug Group
-            await logCriticalError("Customer Notification Failed", {
-                 booking_id: bookingData.booking_id,
-                 reason: reason
-            });
-        }
-
-        // 5. RESPONSE
-        // We return these flags so Terms.html knows if it needs to run a backup save.
-        return res.json({
-            success: true,
-            saved: saveSuccess,
-            telegram_sent: telegramSuccess,
-            debug_clues: serverLog.join(' | '),
-            message: "Payment Verified"
-        });
-
-    } catch (error) {
-        console.error('Verify Payment Critical Error:', error);
-        // Catch-all logger for server crashes
-        await logCriticalError("Critical Server Crash", { error: error.message, stack: error.stack });
-        res.status(500).json({ success: false, error: error.message });
+    if (generated_signature !== razorpay_signature) {
+      // SECURITY ALERT: Log this invalid attempt
+      await logCriticalError("Security: Invalid Signature Attempt", {
+        received: razorpay_signature,
+        generated: generated_signature,
+        order_id: razorpay_order_id
+      });
+      return res.status(400).json({ success: false, error: 'Invalid signature' });
     }
+
+    console.log(`[PAYMENT] Verified for ${bookingData?.booking_id}. Processing...`);
+
+    // 2. ENRICH DATA
+    if (bookingData) {
+      bookingData.status = 'CONFIRMED';
+      bookingData.payment_id = razorpay_payment_id;
+    }
+
+    // 3. PARALLEL EXECUTION (Save DB + Send Telegram)
+    const [workerResult, telegramResult] = await Promise.allSettled([
+      callWorker('/booking/save-secure', 'POST', 'write', bookingData),
+      sendTelegramNotification(bookingData)
+    ]);
+
+    const saveSuccess = workerResult.status === 'fulfilled' && workerResult.value.success;
+    const telegramSuccess = telegramResult.status === 'fulfilled' && telegramResult.value.success;
+
+    // 4. FAILURE LOGGING (Keeps your "Log File" requirement)
+    let serverLog = [];
+
+    if (!saveSuccess) {
+      const reason = workerResult.status === 'rejected' ? workerResult.reason : workerResult.value;
+      console.error("❌ DB Save Failed:", reason);
+      serverLog.push(`DB Error: ${JSON.stringify(reason)}`);
+
+      // 🚨 CRITICAL LOG: Send to your Debug Group
+      await logCriticalError("Database Auto-Save Failed", {
+        booking_id: bookingData.booking_id,
+        reason: reason
+      });
+    }
+
+    if (!telegramSuccess) {
+      const reason = telegramResult.status === 'rejected' ? telegramResult.reason : telegramResult.value;
+      console.error("❌ Telegram Notification Failed:", reason);
+      serverLog.push(`Telegram Error: ${JSON.stringify(reason)}`);
+
+      // 🚨 CRITICAL LOG: Send to your Debug Group
+      await logCriticalError("Customer Notification Failed", {
+        booking_id: bookingData.booking_id,
+        reason: reason
+      });
+    }
+
+    // 5. RESPONSE
+    // We return these flags so Terms.html knows if it needs to run a backup save.
+    return res.json({
+      success: true,
+      saved: saveSuccess,
+      telegram_sent: telegramSuccess,
+      debug_clues: serverLog.join(' | '),
+      message: "Payment Verified"
+    });
+
+  } catch (error) {
+    console.error('Verify Payment Critical Error:', error);
+    // Catch-all logger for server crashes
+    await logCriticalError("Critical Server Crash", { error: error.message, stack: error.stack });
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // --- ROUTE: UPI CALLBACK (Mobile UPI Redirect Recovery) ---
@@ -623,157 +623,157 @@ app.post('/verify-payment', async (req, res) => {
 // (PhonePe, GPay, Paytm, etc.) and the browser JS handler context was killed.
 // This is the safety net for all mobile UPI payments.
 app.post('/payment-callback', async (req, res) => {
-    const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
-    // Redirect back to Terms.html so the existing success/error modal shows seamlessly.
-    // Terms.html intercepts ?payment= params at DOMContentLoaded before any other logic.
-    const TERMS_URL = 'https://www.beanoshub.com/Terms.html';
+  const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+  // Redirect back to Terms.html so the existing success/error modal shows seamlessly.
+  // Terms.html intercepts ?payment= params at DOMContentLoaded before any other logic.
+  const TERMS_URL = 'https://www.beanoshub.com/Terms.html';
 
-    try {
-        // 1. Verify signature — same check as /verify-payment
-        const generated_signature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(razorpay_order_id + '|' + razorpay_payment_id)
-            .digest('hex');
+  try {
+    // 1. Verify signature — same check as /verify-payment
+    const generated_signature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(razorpay_order_id + '|' + razorpay_payment_id)
+      .digest('hex');
 
-        if (generated_signature !== razorpay_signature) {
-            await logCriticalError('payment-callback: Invalid Signature', {
-                razorpay_order_id, razorpay_payment_id
-            });
-            return res.redirect(`${TERMS_URL}?payment=failed&reason=signature`);
-        }
-
-        // 2. Fetch Razorpay order to retrieve the booking notes we stored at create-order
-        const order = await razorpay.orders.fetch(razorpay_order_id);
-        const notes = order.notes || {};
-        const bookingId = notes.bk_id || order.receipt || `UPI-${Date.now()}`;
-
-        console.log(`[CALLBACK] UPI payment verified for booking: ${bookingId}`);
-
-        // 3. Reconstruct booking record from notes
-        const bookingRecord = {
-            booking_id:       bookingId,
-            booking_time:     new Date().toISOString(),
-            event_date:       notes.date  || '',
-            time_slot:        notes.slot  || '',
-            venue_name:       notes.venue || '',
-            venue_address:    notes.addr  || '',
-            customer_name:    notes.name  || '',
-            customer_phone:   notes.phone || '',
-            customer_email:   notes.email || '',
-            occasion_type:    notes.occ   || '',
-            occasion_details: '',
-            items_ordered:    '',
-            venue_price:      Number(notes.vp    || 0),
-            addon_total:      Number(notes.at    || 0),
-            cake_total:       Number(notes.ct    || 0),
-            grand_total:      Number(notes.total || order.amount / 100),
-            status:           'CONFIRMED',
-            payment_id:       razorpay_payment_id,
-            created_at:       new Date().toISOString()
-        };
-
-        // 4. Save to DB + Send Telegram in parallel
-        // Worker idempotency check handles any double-saves gracefully.
-        const [workerResult, telegramResult] = await Promise.allSettled([
-            callWorker('/booking/save-secure', 'POST', 'write', bookingRecord),
-            sendTelegramNotification(bookingRecord)
-        ]);
-
-        const saveSuccess     = workerResult.status === 'fulfilled' && workerResult.value?.success;
-        const telegramSuccess = telegramResult.status === 'fulfilled' && telegramResult.value?.success;
-
-        if (!saveSuccess) {
-            const reason = workerResult.reason || workerResult.value;
-            console.error('[CALLBACK] DB save failed:', reason);
-            await logCriticalError('payment-callback: DB Save Failed', { booking_id: bookingId, reason });
-        }
-
-        if (!telegramSuccess) {
-            const reason = telegramResult.reason || telegramResult.value;
-            console.error('[CALLBACK] Telegram failed:', reason);
-            await logCriticalError('payment-callback: Telegram Failed', { booking_id: bookingId, reason });
-        }
-
-        console.log(`[CALLBACK] Done — saved: ${saveSuccess}, telegram: ${telegramSuccess}`);
-
-        // 5. Redirect customer back to Terms.html — the UPI intercept block shows the success modal.
-        const successParams = new URLSearchParams({
-            payment: 'confirmed',
-            id:      bookingRecord.booking_id,
-            venue:   bookingRecord.venue_name,
-            addr:    bookingRecord.venue_address,
-            date:    bookingRecord.event_date,
-            total:   String(bookingRecord.grand_total)
-        });
-        return res.redirect(`${TERMS_URL}?${successParams.toString()}`);
-
-    } catch (error) {
-        console.error('[CALLBACK] Critical error:', error);
-        await logCriticalError('payment-callback: Critical Crash', {
-            error: error.message, stack: error.stack
-        });
-        return res.redirect(`${TERMS_URL}?payment=error`);
+    if (generated_signature !== razorpay_signature) {
+      await logCriticalError('payment-callback: Invalid Signature', {
+        razorpay_order_id, razorpay_payment_id
+      });
+      return res.redirect(`${TERMS_URL}?payment=failed&reason=signature`);
     }
+
+    // 2. Fetch Razorpay order to retrieve the booking notes we stored at create-order
+    const order = await razorpay.orders.fetch(razorpay_order_id);
+    const notes = order.notes || {};
+    const bookingId = notes.bk_id || order.receipt || `UPI-${Date.now()}`;
+
+    console.log(`[CALLBACK] UPI payment verified for booking: ${bookingId}`);
+
+    // 3. Reconstruct booking record from notes
+    const bookingRecord = {
+      booking_id: bookingId,
+      booking_time: new Date().toISOString(),
+      event_date: notes.date || '',
+      time_slot: notes.slot || '',
+      venue_name: notes.venue || '',
+      venue_address: notes.addr || '',
+      customer_name: notes.name || '',
+      customer_phone: notes.phone || '',
+      customer_email: notes.email || '',
+      occasion_type: notes.occ || '',
+      occasion_details: '',
+      items_ordered: '',
+      venue_price: Number(notes.vp || 0),
+      addon_total: Number(notes.at || 0),
+      cake_total: Number(notes.ct || 0),
+      grand_total: Number(notes.total || order.amount / 100),
+      status: 'CONFIRMED',
+      payment_id: razorpay_payment_id,
+      created_at: new Date().toISOString()
+    };
+
+    // 4. Save to DB + Send Telegram in parallel
+    // Worker idempotency check handles any double-saves gracefully.
+    const [workerResult, telegramResult] = await Promise.allSettled([
+      callWorker('/booking/save-secure', 'POST', 'write', bookingRecord),
+      sendTelegramNotification(bookingRecord)
+    ]);
+
+    const saveSuccess = workerResult.status === 'fulfilled' && workerResult.value?.success;
+    const telegramSuccess = telegramResult.status === 'fulfilled' && telegramResult.value?.success;
+
+    if (!saveSuccess) {
+      const reason = workerResult.reason || workerResult.value;
+      console.error('[CALLBACK] DB save failed:', reason);
+      await logCriticalError('payment-callback: DB Save Failed', { booking_id: bookingId, reason });
+    }
+
+    if (!telegramSuccess) {
+      const reason = telegramResult.reason || telegramResult.value;
+      console.error('[CALLBACK] Telegram failed:', reason);
+      await logCriticalError('payment-callback: Telegram Failed', { booking_id: bookingId, reason });
+    }
+
+    console.log(`[CALLBACK] Done — saved: ${saveSuccess}, telegram: ${telegramSuccess}`);
+
+    // 5. Redirect customer back to Terms.html — the UPI intercept block shows the success modal.
+    const successParams = new URLSearchParams({
+      payment: 'confirmed',
+      id: bookingRecord.booking_id,
+      venue: bookingRecord.venue_name,
+      addr: bookingRecord.venue_address,
+      date: bookingRecord.event_date,
+      total: String(bookingRecord.grand_total)
+    });
+    return res.redirect(`${TERMS_URL}?${successParams.toString()}`);
+
+  } catch (error) {
+    console.error('[CALLBACK] Critical error:', error);
+    await logCriticalError('payment-callback: Critical Crash', {
+      error: error.message, stack: error.stack
+    });
+    return res.redirect(`${TERMS_URL}?payment=error`);
+  }
 });
 
 // --- ROUTE: TEST FULL FLOW (RUN THIS TO TEST) ---
 
 // --- ROUTE: CHECK PAYMENT STATUS (ADMIN TOOL) ---
 app.post('/api/check-razorpay-status', async (req, res) => {
-    const { booking_id } = req.body;
+  const { booking_id } = req.body;
 
-    if (!booking_id) {
-        return res.status(400).json({ success: false, error: "Booking ID is required" });
+  if (!booking_id) {
+    return res.status(400).json({ success: false, error: "Booking ID is required" });
+  }
+
+  try {
+    // 1. Ask Razorpay: "Do you have any order with receipt = booking_id?"
+    const orders = await razorpay.orders.all({
+      receipt: booking_id,
+      count: 5 // Fetch top 5 matches just in case
+    });
+
+    if (orders.count === 0) {
+      return res.json({
+        success: true,
+        found: false,
+        message: "No Razorpay order found for this Booking ID."
+      });
     }
 
-    try {
-        // 1. Ask Razorpay: "Do you have any order with receipt = booking_id?"
-        const orders = await razorpay.orders.all({
-            receipt: booking_id,
-            count: 5 // Fetch top 5 matches just in case
-        });
+    // 2. Analyze the Order(s)
+    // Usually there's only one, but we check the most recent one.
+    const order = orders.items[0];
 
-        if (orders.count === 0) {
-            return res.json({ 
-                success: true, 
-                found: false, 
-                message: "No Razorpay order found for this Booking ID." 
-            });
-        }
+    // 3. Check if it is actually PAID
+    const isPaid = order.status === 'paid' || order.amount_paid >= order.amount;
 
-        // 2. Analyze the Order(s)
-        // Usually there's only one, but we check the most recent one.
-        const order = orders.items[0];
-
-        // 3. Check if it is actually PAID
-        const isPaid = order.status === 'paid' || order.amount_paid >= order.amount;
-
-        // 4. Fetch the specific Payment ID if paid
-        let paymentDetails = null;
-        if (isPaid) {
-            // Fetch payments linked to this order to get the "pay_xxx" ID
-            const payments = await razorpay.orders.fetchPayments(order.id);
-            if (payments.count > 0) {
-                paymentDetails = payments.items[0]; // Get the first successful payment
-            }
-        }
-
-        return res.json({
-            success: true,
-            found: true,
-            status: order.status, // 'created', 'attempted', 'paid'
-            amount_due: order.amount_due / 100,
-            amount_paid: order.amount_paid / 100,
-            currency: order.currency,
-            order_id: order.id,
-            payment_id: paymentDetails ? paymentDetails.id : "Not Found",
-            created_at: new Date(order.created_at * 1000).toLocaleString('en-IN')
-        });
-
-    } catch (error) {
-        console.error("Razorpay Check Error:", error);
-        res.status(500).json({ success: false, error: error.message });
+    // 4. Fetch the specific Payment ID if paid
+    let paymentDetails = null;
+    if (isPaid) {
+      // Fetch payments linked to this order to get the "pay_xxx" ID
+      const payments = await razorpay.orders.fetchPayments(order.id);
+      if (payments.count > 0) {
+        paymentDetails = payments.items[0]; // Get the first successful payment
+      }
     }
+
+    return res.json({
+      success: true,
+      found: true,
+      status: order.status, // 'created', 'attempted', 'paid'
+      amount_due: order.amount_due / 100,
+      amount_paid: order.amount_paid / 100,
+      currency: order.currency,
+      order_id: order.id,
+      payment_id: paymentDetails ? paymentDetails.id : "Not Found",
+      created_at: new Date(order.created_at * 1000).toLocaleString('en-IN')
+    });
+
+  } catch (error) {
+    console.error("Razorpay Check Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Export for Vercel
